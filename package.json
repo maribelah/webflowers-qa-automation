@@ -1,0 +1,31 @@
+{
+  "name": "webflowers-qa-automation",
+  "version": "1.0.0",
+  "description": "Framework de automatización QA para WebFlowers CRM — GHT",
+  "main": "index.js",
+  "scripts": {
+    "test": "npx playwright test",
+    "test:alpha": "cross-env AMBIENTE=ALPHA npx playwright test",
+    "test:beta": "cross-env AMBIENTE=BETA npx playwright test",
+    "test:prod": "cross-env AMBIENTE=PROD npx playwright test",
+    "test:headed": "npx playwright test --headed",
+    "allure:generate": "allure generate reports/allure-results -o reports/allure-report --clean",
+    "allure:open": "allure open reports/allure-report",
+    "allure:report": "npm run allure:generate && npm run allure:open"
+  },
+  "keywords": ["playwright", "qa", "automation", "testing", "webflowers"],
+  "author": "GHT",
+  "license": "ISC",
+  "devDependencies": {
+    "@playwright/test": "^1.44.0",
+    "@types/node": "^20.12.0",
+    "allure-playwright": "^2.15.0",
+    "typescript": "^5.4.0"
+  },
+  "dependencies": {
+    "@types/mssql": "^9.1.0",
+    "cross-env": "^7.0.3",
+    "dotenv": "^16.4.0",
+    "mssql": "^10.0.0"
+  }
+}
