@@ -6,7 +6,7 @@ import { ENV } from '../utils/envConfig';
  * Page Class del módulo Login de WebFlowers
  * 
  * Encapsula los elementos y acciones de la pantalla de autenticación.
- * Orden de preferencia de selectores: data-testid → role → text → css
+ * Localizadores actualizados con los IDs reales de WebFlowers.
  */
 export class LoginPage extends BasePage {
   readonly inputUsuario: Locator;
@@ -17,10 +17,10 @@ export class LoginPage extends BasePage {
   constructor(page: Page) {
     super(page);
     
-    // Preferir data-testid, si no existe usar role, text o css
-    this.inputUsuario = page.locator('[data-testid="username"], input[name="username"], #username');
-    this.inputPassword = page.locator('[data-testid="password"], input[name="password"], #password');
-    this.btnIngresar = page.locator('[data-testid="login-button"], button[type="submit"], input[type="submit"]');
+    // Localizadores específicos de WebFlowers
+    this.inputUsuario = page.locator('#txtUserName');
+    this.inputPassword = page.locator('#txtPassword');
+    this.btnIngresar = page.locator('#btnSigIn');
     this.mensajeError = page.locator('[data-testid="error-message"], .error-message, .alert-danger');
   }
 
