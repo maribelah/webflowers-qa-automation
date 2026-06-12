@@ -1,0 +1,14 @@
+{
+  "exitoso": {
+    "descripcion": "Finalizar Work Order vinculada a Sales Order con productos KIT",
+    "woNo": ""
+  },
+  "fallido": {
+    "descripcion": "Intentar finalizar WO inexistente",
+    "woNo": "000000"
+  },
+  "borde": {
+    "descripcion": "Campo Search Text vacío — validación de formulario",
+    "woNo": ""
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "exitoso": {
+    "descripcion": "Crear Sales Order con dos productos KIT — happy path completo",
+    "customer": "TRADER JOE'S F GUESSTIMATES",
+    "poNo": "QA Automatizado",
+    "shippingDate": null,
+    "productos": [
+      {
+        "codigo": "CBAT-N475",
+        "descripcion": "Easter Grower Pallet — KIT con sub-KITs anidados",
+        "boxes": 10,
+        "fobPrice": 12
+      },
+      {
+        "codigo": "CBAT-N476",
+        "descripcion": "KIT secundario de prueba",
+        "boxes": 10,
+        "fobPrice": 12
+      }
+    ]
+  }
+}

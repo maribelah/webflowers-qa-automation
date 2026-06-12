@@ -13,7 +13,13 @@
     "allure:open": "allure open reports/allure-report",
     "allure:report": "npm run allure:generate && npm run allure:open"
   },
-  "keywords": ["playwright", "qa", "automation", "testing", "webflowers"],
+  "keywords": [
+    "playwright",
+    "qa",
+    "automation",
+    "testing",
+    "webflowers"
+  ],
   "author": "GHT",
   "license": "ISC",
   "devDependencies": {
@@ -26,6 +32,6 @@
     "@types/mssql": "^9.1.0",
     "cross-env": "^7.0.3",
     "dotenv": "^16.4.0",
-    "mssql": "^10.0.0"
+    "mssql": "^12.5.4"
   }
 }

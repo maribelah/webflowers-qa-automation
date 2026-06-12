@@ -1,10 +1,10 @@
 {
   "compilerOptions": {
+    "lib": ["ES2022", "DOM"],
     "target": "ES2020",
     "module": "commonjs",
-    "lib": ["ES2020"],
     "outDir": "./dist",
-    "rootDir": "./src",
+    "rootDir": ".",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
@@ -20,8 +20,13 @@
       "@data/*": ["src/data/*"],
       "@fixtures/*": ["src/fixtures/*"],
       "@types/*": ["src/types/*"]
-    }
+      }
   },
+
+  
   "include": ["src/**/*", "tests/**/*"],
   "exclude": ["node_modules", "dist"]
+
+  
+  
 }

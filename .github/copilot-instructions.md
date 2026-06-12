@@ -77,7 +77,133 @@ El agente dispone de los siguientes archivos `.prompt.md` invocables desde el ch
 
 ---
 
-## 🌐 Ambientes de Trabajo
+## 🖼️ Estructura de Iframes de WebFlowers ERP
+
+WebFlowers ERP usa iframes para separar header, menú y contenido.
+`BasePage.ts` expone los tres frames listos para usar en todas las Page Classes.
+
+```
+MAIN_PAGE
+├── iframe #top_Page2     ← frameHeader  (Search Modules, usuario)
+├── iframe #left_page1    ← frameMenu    (menú lateral)
+└── div #center
+    └── iframe #center_page  ← frameCenter  (módulo activo)
+```
+
+### ⚠️ Patrones críticos de WebFlowers — leer antes de generar cualquier localizador
+
+```
+1. networkidle NO funciona — WebFlowers mantiene conexiones permanentes.
+   Siempre usar: waitUntil: 'domcontentloaded' y esperarFrameListo() / esperarCargaModulo()
+
+2. Spinner de carga — TIENE UN TYPO en el código de WebFlowers:
+   ✅ CORRECTO:  //div[contains(@class,'progessContainer') and @data-ng-show='IsLoading']
+   ❌ INCORRECTO: progressContainer (con 'r') — no existe en el DOM
+
+3. Campos sin id/name — WebFlowers usa AngularJS. Localizador estable:
+   //input[@data-ng-model='currentOrder.CAMPO']
+   //select[@data-ng-model='currentOrder.CAMPO']
+
+4. Campos condicionales — algunos inputs se muestran/ocultan según el estado.
+   Usar: not(contains(@class,'ng-hide')) para obtener el visible.
+   Ejemplo P.O. No.: //input[@data-ng-model='currentOrder.PONumber' and not(contains(@class,'ng-hide'))]
+
+5. Toast de éxito — está dentro del iframe #center_page, no en la página principal.
+   El mensaje es "Order saved successfully" — NO incluye el número de orden.
+   Order No. se lee del formulario: //div[@id='divForm']/div[4]/div/div/label[2]/span
+```
+
+### Regla absoluta para localizadores en WebFlowers
+
+**Nunca usar `page.locator()` directamente para elementos dentro de iframes.**
+Siempre usar el frame correspondiente:
+
+```typescript
+// ✅ Correcto — elemento en el header
+this.frameHeader.locator('#inputSearch')
+
+// ✅ Correcto — elemento en el menú lateral
+this.frameMenu.locator("//div[text()='Sales']")
+this.frameMenu.locator("//ul[@id='subSales']/li[2]/div/div")
+
+// ✅ Correcto — elemento en el módulo activo (contenido central)
+this.frameCenter.locator('#divForm')
+this.frameCenter.locator('[data-ng-app="salesOrderEntry"]')
+
+// ❌ Incorrecto — no encontrará el elemento
+page.locator('#inputSearch')
+page.locator("//div[text()='Sales']")
+```
+
+### En qué frame vive cada elemento
+
+| Área | Frame | Ejemplos |
+|---|---|---|
+| Header | `this.frameHeader` | `#inputSearch`, nombre de usuario |
+| Menú lateral | `this.frameMenu` | `Sales`, `Products`, `Inventory`, submenús |
+| Módulo activo | `this.frameCenter` | Formularios, tablas, botones del módulo |
+| Login | `page` directamente | `#txtUserName`, `#txtPassword`, `#btnSigIn` |
+
+> El login NO usa iframes — es la única pantalla que usa `page.locator()` directamente.
+
+### Localizadores de navegación confirmados por módulo
+
+> ⚠️ Muchos ítems del menú tienen el mismo `title` (ej. "New" aparece 9 veces).
+> SIEMPRE anclar al `id` del submenú padre para evitar ambigüedad.
+
+```xpath
+<!-- Login -->
+Usuario:  input[name="txtUserName"]
+Password: input[name="txtPassword"]
+Botón:    #btnSigIn
+
+<!-- Sales → New → Order Entry -->
+Sales:       //div[@class='div-parent' and @title='Sales']
+New:         //ul[@id='subSales']//div[@class='div-child' and @title='New']
+Order Entry: //ul[@id='sub1_New_10']//div[@class='div-subchild' and @title='Order Entry']
+Módulo OK:   //div[@data-label='Sales_Order_Entry']
+
+<!-- Procurement → Products → New PO -->
+Procurement: //div[@class='div-parent' and @title='Procurement']
+Products:    //div[@class='div-parent' and @title='Procurement']/ul/li[3]/div
+New PO:      //ul[@id='sub2_Products_11']/li[4]/div
+```
+
+```xpath
+<!-- ❌ NUNCA usar estos — son incorrectos o ambiguos -->
+//div[@class='div-parent' and @title='Sales']/ul/li[2]/div      ← frágil por posición
+//span[@class='label-text' and text()='Order Entry']            ← no clickeable directo
+//div[@class='div-child' and @title='New']                      ← 9 coincidencias
+```
+
+### Localizadores de Sales Order Entry (frameCenter)
+
+```xpath
+Módulo cargado:   //div[@data-label='Sales_Order_Entry']
+Customer input:   //input[@id='txtCustomer']  — escribir 4 chars, esperar dropdown
+Customer opción:  //div[@class='userDiv userDivLines']  — clic en la fila del customer
+Shipping Date:    //input[@data-ng-model='currentOrder.DueDate']  — formato MM/DD/YYYY
+Carrier:          //label[@data-label='Carrier']/following-sibling::div//select
+P.O. No.:         //input[@data-ng-model='currentOrder.PONumber' and not(contains(@class,'ng-hide'))]
+Add Products:     //span[@data-label='AddProducts']
+Quick Search:     //tr[@data-ng-click='addProductFromQuickSearch()']
+Popup QS:         //label[@id='apcOrder_lblQuickProductSearch']
+Buscar producto:  //input[@id='txtSearch'] + //img[@id='btnSearch']
+Fila resultado:   //div[@id='divResultsGrid']//tr[td[contains(normalize-space(.),codigo)]]
+Botón Add popup:  //input[@id='apcOrder_btncloseAndAddProduct']
+Boxes (AG Grid):  //input[@ng-model='data.Boxes']  — nth(linea-1)
+FOB Price:        //input[@ng-model='data.Price']   — nth(linea-1)
+Save:             //button[@id='btnSave']
+Toast éxito:      //div[contains(@class,'toast-success')]
+Cerrar toast:     //button[contains(@class,'toast-close-button')]
+Order No.:        //div[@id='divForm']/div[4]/div/div/label[2]/span
+Spinner:          //div[contains(@class,'progessContainer') and @data-ng-show='IsLoading']
+```
+
+> ⚠️ El segundo producto se agrega sin re-clicar "Add Products".
+> Después de agregar el primero, el menú permanece abierto — ir directo a Quick Search.
+
+---
 
 El proyecto opera en 3 ambientes. El ambiente activo se controla con la variable
 `AMBIENTE` en el archivo `.env`. Por defecto siempre es **ALPHA**.
@@ -122,10 +248,69 @@ Nunca leer `process.env` directamente en pages, tasks ni tests.
 import { ENV } from '../utils/envConfig';
 
 // ✅ Correcto
-await page.goto(ENV.url);
+await this.navegarA(ENV.url);
 
 // ❌ Incorrecto
 await page.goto(process.env.ALPHA_URL!);
+await page.goto(ENV.app.url);  // ← ENV.app no existe
+```
+
+### Contrato exacto del objeto ENV
+
+Esta es la estructura real de `ENV` en `envConfig.ts`.
+**Nunca inventar propiedades. Nunca usar rutas distintas a las siguientes:**
+
+```typescript
+// ── Aplicación ──────────────────────────────────────────
+ENV.ambiente    // 'ALPHA' | 'BETA' | 'PROD'
+ENV.url         // URL base del ambiente activo
+ENV.usuario     // Usuario de la aplicación
+ENV.password    // Contraseña de la aplicación
+ENV.ignoreSSL   // true solo en ALPHA
+
+// ── Base de datos WebFlowers ─────────────────────────────
+ENV.db.servidor  // Servidor Azure SQL del ambiente activo
+ENV.db.nombre    // Nombre de la BD del ambiente activo
+ENV.db.usuario   // Usuario de la BD
+ENV.db.password  // Contraseña de la BD
+
+// ── Métricas qa_metrics ──────────────────────────────────
+ENV.metrics.servidor  // Servidor Azure SQL de qa_metrics
+ENV.metrics.bd        // Nombre de la BD de métricas
+ENV.metrics.usuario   // Usuario de la BD de métricas
+ENV.metrics.password  // Contraseña de la BD de métricas
+```
+
+**Ejemplos de uso correcto en cada contexto:**
+
+```typescript
+// En Page Class o Task
+await this.navegarA(ENV.url);
+await page.goto(ENV.url);
+await page.goto(`${ENV.url}/sales/order-entry`);
+
+// En fixture o helper
+console.log(`Ambiente: ${ENV.ambiente}`);
+console.log(`BD: ${ENV.db.nombre}`);
+
+// En dbHelper
+server:   ENV.db.servidor,
+database: ENV.db.nombre,
+user:     ENV.db.usuario,
+password: ENV.db.password,
+
+// En metricsReporter
+server:   ENV.metrics.servidor,
+database: ENV.metrics.bd,
+user:     ENV.metrics.usuario,
+password: ENV.metrics.password,
+```
+
+**Propiedades que NO existen — nunca usar:**
+```typescript
+ENV.app.url       // ❌ no existe
+ENV.app.ambiente  // ❌ no existe
+ENV.app.usuario   // ❌ no existe
 ```
 
 ---
@@ -587,26 +772,105 @@ test('Crear producto nuevo', async ({ page }) => {
 - Usar las credenciales de `ENV.db` para conectarse a `qa_metrics` — son conexiones distintas
 - Lanzar excepciones en `MetricsReporter.onEnd()` que puedan interrumpir Playwright
 - Interpolar variables en queries SQL — siempre usar `request().input()` con tipos explícitos
+- Usar `ENV.app.url`, `ENV.app.ambiente` u otras propiedades bajo `ENV.app.*` — no existen
+
+---
+
+## 🔒 Archivos que NUNCA se deben modificar ni regenerar
+
+Estos archivos ya existen en el proyecto y están correctamente implementados.
+El agente **nunca los toca** — solo los importa y los usa:
+
+| Archivo | Cómo usarlo |
+|---|---|
+| `src/pages/BasePage.ts` | Heredar: `class MiPage extends BasePage` |
+| `src/fixtures/base.fixture.ts` | Importar: `import { test, expect } from '../fixtures/base.fixture'` |
+| `src/utils/envConfig.ts` | Importar: `import { ENV } from '../utils/envConfig'` |
+| `src/utils/helpers.ts` | Importar solo funciones que existen: `formatearFecha`, `generarTextoUnico`, `rutaScreenshot`, `esperarMs`, `reintentar` |
+| `src/utils/dbHelper.ts` | Importar: `import { ejecutarQuery, ejecutarQueryParametrizada, existeRegistro, contarRegistros } from '../utils/dbHelper'` |
+| `src/utils/metricsReporter.ts` | No importar — se registra solo en `playwright.config.ts` |
+| `playwright.config.ts` | No modificar |
+| `tsconfig.json` | No modificar |
+| `package.json` | No modificar |
 
 ---
 
 ## 💬 Cómo dar instrucciones al Agente
 
-El QA describe la prueba en lenguaje natural usando esta estructura:
+El QA describe la prueba usando esta estructura obligatoria.
+**`Módulo` y `Requerimiento` son los campos principales** — determinan
+el nombre y ubicación de todos los artefactos generados.
 
 ```
-Módulo: [nombre del módulo]
+@workspace /crear-test
+Módulo: [opción del menú de WebFlowers — ej: Sales Order Entry, Inventario, Clientes]
+Requerimiento: [REQ-ID de Azure DevOps — ej: REQ-001]
 Funcionalidad: [descripción de lo que se prueba]
-Pasos:
+Pasos del flujo exitoso:
   1. [paso 1]
   2. [paso 2]
   ...
 Resultado esperado: [qué debe ocurrir al finalizar]
-Validación BD: [si aplica, qué validar en base de datos]
-Genera: [Page Class / test / JSON / DB helper — lo que se necesite]
+Validación BD: [si aplica — qué verificar en BD. Si no aplica, escribir: No aplica]
+Page Class disponible: [NombrePage.ts si ya existe, o "Crear [Nombre]Page.ts" si es nuevo]
+Datos de prueba disponibles: [REQ-ID-data.json si ya existe, o "Crear REQ-ID-data.json"]
+NO MODIFICAR: BasePage.ts, base.fixture.ts, envConfig.ts, helpers.ts, dbHelper.ts
 ```
+
+### Artefactos que genera el Requerimiento
+
+El `REQ-ID` o `TC-ID` es el identificador padre de todo lo que Copilot genera.
+**Siempre se generan los 3 artefactos — nunca omitir el `.md`:**
+
+```
+TC-KIT-F1-001
+  ├── tests/modulo-kit/TC-KIT-F1-001-crear-sales-order.spec.ts   ← spec ejecutable
+  ├── src/data/kit-salesorder-data.json                          ← datos de prueba
+  └── tests/specs-fuente/sales-order-entry/TC-KIT-F1-001.md     ← documentación ⚠️ OBLIGATORIO
+```
+
+### Formato obligatorio del archivo `.md` de spec fuente
+
+Seguir **exactamente** el formato de `tests/specs-fuente/sales-order-entry/REQ-001.md`:
+
+```markdown
+# [TC-ID] — [Nombre del caso]
+
+## Prompt original
+
+@workspace /crear-test
+[Copiar aquí el prompt completo tal como fue enviado]
+
+---
+
+## Análisis UI y localizadores
+
+### Pantallas involucradas
+- [lista de pantallas]
+
+### Elementos y localizadores clave
+- **[Elemento]:** `[localizador XPath o CSS]`
+
+### Flujo esperado
+1. [paso 1]
+2. [paso 2]
+
+### Notas
+- [observaciones técnicas relevantes]
+```
+
+> El archivo `.md` es obligatorio aunque el spec ya exista.
+> Si Copilot no lo genera automáticamente, usar el prompt:
+> `@workspace Crea tests/specs-fuente/[modulo]/[TC-ID].md siguiendo el formato de REQ-001.md`
 
 ---
 
 *webflowers-qa-automation — .github/copilot-instructions.md*
-*Versión 3.0 — Mayo 2026 — Alineado con SDD v4.1*
+*Versión 4.3 — Junio 2026 — Alineado con SDD v4.3*
+*Cambios v4.3:*
+*- Localizadores reales confirmados para Sales Order Entry y Procurement*
+*- Patrones críticos de WebFlowers: spinner typo (progessContainer), no networkidle, ng-hide condicional*
+*- Localizadores de menú anclados a IDs de submenú (#subSales, #sub1_New_10) para evitar ambigüedad*
+*- Spec fuente .md declarado como artefacto OBLIGATORIO en /crear-test*
+*- Formato de TC-KIT-F1-001.md como referencia para futuros specs*
+*- Corrección: ENV.url y ENV.ambiente SÍ existen — ENV.app.* NO existe*

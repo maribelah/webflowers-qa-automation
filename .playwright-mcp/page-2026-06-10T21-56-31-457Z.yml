@@ -1,0 +1,22 @@
+- generic [ref=e4]:
+  - generic [ref=e7]:
+    - img "WebFlowers" [ref=e8]
+    - heading "Kendal South" [level=5] [ref=e9]
+    - textbox "User Name or E-mail" [active] [ref=e15]
+    - textbox "Password" [ref=e21]
+    - generic [ref=e22]:
+      - generic [ref=e23]:
+        - checkbox "Remember me" [ref=e24] [cursor=pointer]
+        - generic [ref=e25] [cursor=pointer]: Remember me
+      - generic [ref=e26]:
+        - button "Sign In" [ref=e28] [cursor=pointer]
+        - link "Forgot your password?" [ref=e29] [cursor=pointer]:
+          - /url: javascript:__doPostBack('lnkForgotPassword','')
+    - generic [ref=e30]: Alpha KDS / 20260603.3
+  - generic [ref=e32]:
+    - img [ref=e33]
+    - generic [ref=e34]:
+      - link "Terms of Service":
+        - /url: https://ghtstoragecdn.blob.core.windows.net/ghtdigitaltransformationpolicies/privacy-policy.html
+      - link "Privacy Policy":
+        - /url: https://ghtstoragecdn.blob.core.windows.net/ghtdigitaltransformationpolicies/privacy-policy.html

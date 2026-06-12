@@ -1,0 +1,197 @@
+- generic [ref=e1]:
+  - button "Choose File" [ref=e2]
+  - generic:
+    - iframe [ref=e4]:
+      - generic [ref=f1e3]:
+        - generic [ref=f1e4]:
+          - generic [ref=f1e7]: WF WebFlowers
+          - searchbox "Search Modules" [ref=f1e9]
+          - generic [ref=f1e11]:
+            - generic "Module of Help" [ref=f1e12] [cursor=pointer]
+            - generic "Notifications" [ref=f1e14] [cursor=pointer]
+            - generic "New Page" [ref=f1e16] [cursor=pointer]
+            - generic "What's new" [ref=f1e17] [cursor=pointer]
+        - generic [ref=f1e19]: QA Automatizacion / KDS
+    - iframe [active] [ref=e6]:
+      - list [ref=f2e4]:
+        - listitem [ref=f2e5]:
+          - generic "Favorites" [ref=f2e6]:
+            - generic [ref=f2e8] [cursor=pointer]: Favorites
+        - listitem [ref=f2e10]:
+          - generic "Users" [ref=f2e11]:
+            - generic [ref=f2e13] [cursor=pointer]: Users
+        - listitem [ref=f2e15]:
+          - generic "Settings" [ref=f2e16]:
+            - generic [ref=f2e18] [cursor=pointer]: Settings
+        - listitem [ref=f2e20]:
+          - generic "General" [ref=f2e21]:
+            - generic [ref=f2e23] [cursor=pointer]: General
+        - listitem [ref=f2e25]:
+          - generic "Intercom" [ref=f2e26]:
+            - generic [ref=f2e28] [cursor=pointer]: Intercom
+        - listitem [ref=f2e30]:
+          - generic "Human Resources" [ref=f2e31]:
+            - generic [ref=f2e33] [cursor=pointer]: Human Resources
+        - listitem [ref=f2e35]:
+          - generic "Carriers" [ref=f2e36]:
+            - generic [ref=f2e38] [cursor=pointer]: Carriers
+        - listitem [ref=f2e40]:
+          - generic "Customers" [ref=f2e41]:
+            - generic [ref=f2e43] [cursor=pointer]: Customers
+        - listitem [ref=f2e45]:
+          - generic "Vendors" [ref=f2e46]:
+            - generic [ref=f2e48] [cursor=pointer]: Vendors
+        - listitem [ref=f2e50]:
+          - generic "Hardgoods" [ref=f2e51]:
+            - generic [ref=f2e53] [cursor=pointer]: Hardgoods
+        - listitem [ref=f2e55]:
+          - generic "Products" [ref=f2e56]:
+            - generic [ref=f2e58] [cursor=pointer]: Products
+        - listitem [ref=f2e60]:
+          - generic "Sales" [ref=f2e61]:
+            - generic [ref=f2e63] [cursor=pointer]: Sales
+        - listitem [ref=f2e65]:
+          - generic "Procurement" [ref=f2e66]:
+            - generic [ref=f2e68] [cursor=pointer]: Procurement
+        - listitem [ref=f2e70]:
+          - generic "Inventory" [ref=f2e71]:
+            - generic [ref=f2e73] [cursor=pointer]: Inventory
+            - list [ref=f2e132]:
+              - listitem [ref=f2e133]:
+                - generic "Settings" [ref=f2e134]:
+                  - generic [ref=f2e136] [cursor=pointer]: Settings
+              - listitem [ref=f2e138]:
+                - generic "Tools" [ref=f2e139]:
+                  - generic [ref=f2e141] [cursor=pointer]: Tools
+                  - list [ref=f2e173]:
+                    - listitem [ref=f2e174]:
+                      - generic "Transfer Boxes" [ref=f2e175]:
+                        - link "Transfer Boxes" [ref=f2e176] [cursor=pointer]:
+                          - /url: ../Inventory/ZonesTransferTool.aspx?xapApplicationName=&menuId=INVENTORY_ZONES_TRANSFER_TOOL&caption=Transfer Boxes
+                          - generic [ref=f2e177]: Transfer Boxes
+                    - listitem [ref=f2e179]:
+                      - generic "Moving Boxes" [ref=f2e180]:
+                        - link "Moving Boxes" [ref=f2e181] [cursor=pointer]:
+                          - /url: ../Inventory/FlowersMovingBoxesTool.aspx?xapApplicationName=&menuId=INVENTORY_FLOWERS_MOVING_BOXES_TOOL&caption=Moving Boxes
+                          - generic [ref=f2e182]: Moving Boxes
+                    - listitem [ref=f2e184]:
+                      - generic "Hardgoods Moving Boxes" [ref=f2e185]:
+                        - link "Hardgoods Moving Boxes" [ref=f2e186] [cursor=pointer]:
+                          - /url: ../Inventory/HardgoodsMovingBoxesTool.aspx?xapApplicationName=&menuId=INVENTORY_HARDGOODS_MOVING_BOXES_TOOL&caption=Hardgoods Moving Boxes
+                          - generic [ref=f2e187]: Hardgoods Moving Boxes
+                    - listitem [ref=f2e189]:
+                      - generic "Production Reporting" [ref=f2e190]:
+                        - link "Production Reporting" [ref=f2e191] [cursor=pointer]:
+                          - /url: ../Inventory/ProductionReporting.aspx?xapApplicationName=&menuId=INVENTORY_PRODUCTION_REPORTING&caption=Production Reporting
+                          - generic [ref=f2e192]: Production Reporting
+                    - listitem [ref=f2e194]:
+                      - generic "Product Disassembly" [ref=f2e195]:
+                        - link "Product Disassembly" [ref=f2e196] [cursor=pointer]:
+                          - /url: ../Inventory/ProductDisassembly.aspx?xapApplicationName=&menuId=INVENTORY_PRODUCT_DISASSEMBLY&caption=Product Disassembly
+                          - generic [ref=f2e197]: Product Disassembly
+                    - listitem [ref=f2e199]:
+                      - generic "Costing System Acceptance" [ref=f2e200]:
+                        - link "Costing System Acceptance" [ref=f2e201] [cursor=pointer]:
+                          - /url: ../Inventory/CostingSystemAcceptance.aspx?xapApplicationName=&menuId=INVENTORY_COSTING_SYSTEM_ACCEPTANCE&caption=Costing System Acceptance
+                          - generic [ref=f2e202]: Costing System Acceptance
+                    - listitem [ref=f2e204]:
+                      - generic "Month-End" [ref=f2e205]:
+                        - link "Month-End" [ref=f2e206] [cursor=pointer]:
+                          - /url: ../Inventory/MonthEnd.aspx?xapApplicationName=&menuId=INVENTORY_MONTH_END&caption=Month-End
+                          - generic [ref=f2e207]: Month-End
+              - listitem [ref=f2e143]:
+                - generic "General" [ref=f2e144]:
+                  - generic [ref=f2e146] [cursor=pointer]: General
+              - listitem [ref=f2e148]:
+                - generic "Inventory Transaction" [ref=f2e149]:
+                  - generic [ref=f2e151] [cursor=pointer]: Inventory Transaction
+              - listitem [ref=f2e153]:
+                - generic "Flowers" [ref=f2e154]:
+                  - generic [ref=f2e156] [cursor=pointer]: Flowers
+              - listitem [ref=f2e158]:
+                - generic "Hardgoods" [ref=f2e159]:
+                  - generic [ref=f2e161] [cursor=pointer]: Hardgoods
+              - listitem [ref=f2e163]:
+                - generic "Finished Product Inventory" [ref=f2e164]:
+                  - generic [ref=f2e166] [cursor=pointer]: Finished Product Inventory
+              - listitem [ref=f2e168]:
+                - generic "Box Info" [ref=f2e169]:
+                  - link "Box Info" [ref=f2e170] [cursor=pointer]:
+                    - /url: ../Inventory/InventoryBoxInfo.aspx?xapApplicationName=&menuId=INVENTORY_BOX_INFORMATION&caption=Box Info
+                    - generic [ref=f2e171]: Box Info
+        - listitem [ref=f2e75]:
+          - generic "Quality" [ref=f2e76]:
+            - generic [ref=f2e78] [cursor=pointer]: Quality
+        - listitem [ref=f2e80]:
+          - generic "Planning" [ref=f2e81]:
+            - generic [ref=f2e83] [cursor=pointer]: Planning
+        - listitem [ref=f2e85]:
+          - generic "Production" [ref=f2e86]:
+            - generic [ref=f2e88] [cursor=pointer]: Production
+        - listitem [ref=f2e90]:
+          - generic "Shipping" [ref=f2e91]:
+            - generic [ref=f2e93] [cursor=pointer]: Shipping
+        - listitem [ref=f2e95]:
+          - generic "Vendor Management" [ref=f2e96]:
+            - generic [ref=f2e98] [cursor=pointer]: Vendor Management
+        - listitem [ref=f2e100]:
+          - generic "Accounting" [ref=f2e101]:
+            - generic [ref=f2e103] [cursor=pointer]: Accounting
+        - listitem [ref=f2e105]:
+          - generic "Reports" [ref=f2e106]:
+            - generic [ref=f2e108] [cursor=pointer]: Reports
+        - listitem [ref=f2e110]:
+          - generic "Truck Reservation" [ref=f2e111]:
+            - generic [ref=f2e113] [cursor=pointer]: Truck Reservation
+        - listitem [ref=f2e115]:
+          - generic "Dashboards" [ref=f2e116]:
+            - generic [ref=f2e118] [cursor=pointer]: Dashboards
+        - listitem [ref=f2e120]:
+          - generic "Preview" [ref=f2e121]:
+            - generic [ref=f2e123] [cursor=pointer]: Preview
+    - iframe [ref=e8]:
+      
+  - generic [ref=e9]:
+    - generic [ref=e10]:
+      - text: Notifications
+      - generic [ref=e11] [cursor=pointer]: Delete All
+      - generic [ref=e12] [cursor=pointer]: Mark all as read
+    - generic [ref=e16] [cursor=pointer]: No new notifications from this session
+    - generic [ref=e18] [cursor=pointer]: Load more (10)
+  - generic [ref=e19]:
+    - generic [ref=e24]: Accessibility
+    - generic [ref=e27]:
+      - text: Contrast
+      - generic [ref=e28]:
+        - generic [ref=e30]: Filters
+        - generic [ref=e31]:
+          - button [ref=e32] [cursor=pointer]
+          - button [ref=e33] [cursor=pointer]
+          - button [ref=e34] [cursor=pointer]
+      - text: Text
+      - generic [ref=e37]: Font Size
+      - generic [ref=e44]: Letter Spacing
+      - generic [ref=e51]: Line Height
+      - generic [ref=e56]:
+        - generic [ref=e58]: Legible Font
+        - generic [ref=e60] [cursor=pointer]: A
+      - text: Assist
+      - generic [ref=e63]: Delete Cookies
+      - generic [ref=e68]: Disable Animations
+  - generic [ref=e71]:
+    - generic [ref=e73]: Feedback
+    - generic [ref=e78]:
+      - generic [ref=e82]: Report an issue
+      - combobox [ref=e85]:
+        - option "Report an issue" [selected]
+        - option "Suggest a Feature"
+        - option "My Feedback"
+      - generic [ref=e87]:
+        - generic [ref=e90]:
+          - generic [ref=e91]: Issue
+          - textbox [ref=e92]
+          - generic [ref=e95]: 0/500
+        - button "Choose File" [ref=e99]
+        - generic [ref=e102]: Or
+        - button "Take Screenshot" [ref=e105] [cursor=pointer]
+    - button "Submit" [ref=e107] [cursor=pointer]

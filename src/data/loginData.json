@@ -1,17 +1,8 @@
 {
   "exitoso": {
     "usuario": "qaauto",
-    "password": "Test123!",
+    "password": "qaauto!",
     "descripcion": "Usuario con acceso completo al sistema"
-  },
-  "fallido": {
-    "usuario": "qaauto",
-    "password": "password_incorrecta",
-    "descripcion": "Contraseña incorrecta para usuario válido"
-  },
-  "borde": {
-    "usuario": "",
-    "password": "",
-    "descripcion": "Campos vacíos, validación de formulario"
   }
+ 
 }

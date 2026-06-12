@@ -1,0 +1,28 @@
+{
+  "exitoso": {
+    "vendor": "Florexpo - Central",
+    "orderDate": "01/06/2026",
+    "requiredDate": "03/06/2026",
+    "quantity": 50,
+    "unitPrice": 15500,
+    "descripcion": "Pedido válido con vendor real de WebFlowers Alpha"
+  },
+  "fallido": {
+    "vendor": "",
+    "shipVia": "Standard",
+    "orderDate": "02/06/2026",
+    "requiredDate": "01/06/2026",
+    "quantity": -10,
+    "unitPrice": 0,
+    "descripcion": "Pedido inválido: vendor vacío, requiredDate anterior a orderDate, quantity negativa, unitPrice cero"
+  },
+  "borde": {
+    "vendor": "Florexpo - Central",
+    "shipVia": "Local",
+    "orderDate": "01/06/2026",
+    "requiredDate": "01/06/2026",
+    "quantity": 1,
+    "unitPrice": 1,
+    "descripcion": "Caso límite: requiredDate igual a orderDate, cantidad mínima, precio mínimo"
+  }
+}

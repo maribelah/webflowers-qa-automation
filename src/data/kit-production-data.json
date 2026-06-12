@@ -1,0 +1,33 @@
+{
+  "produccionKIT": {
+    "descripcion": "Datos esperados en Production Reporting tras WO FINISHED con CBAT-N475",
+    "customer": "TRADER JOE'S F GUESSTIMATES",
+    "customerFiltro": "F Guesstimate",
+    "tarea": "House Made",
+    "productoKIT": {
+      "codigo": "CBAT-N475",
+      "nombre": "EASTER GROWER PALLET",
+      "costingGroupEsperado": "PROX",
+      "boxes": 10
+    },
+    "validacionesGrid": {
+      "columnas": ["Task", "Product Name", "Order Id", "Costing Group", "Box Type", "Boxes", "Bunches"]
+    },
+    "formulaBunches": {
+      "descripcion": "TC-KIT-F3-003 — Bunches Total = Boxes × suma de Bunches por componente",
+      "regla": "sum(bunchesComponentes) × boxes = bunchesHeader",
+      "componentesEsperados": [
+        { "numero": "001", "costingGroup": "CWH- GB POMPOMS",        "bunches": 40 },
+        { "numero": "002", "costingGroup": "CWH- GB TINTED POMPOMS", "bunches": 16 },
+        { "numero": "003", "costingGroup": "CWH- GB SPIDER",         "bunches": 40 },
+        { "numero": "004", "costingGroup": "CWH- GB GYP",            "bunches": 24 },
+        { "numero": "005", "costingGroup": "AMZ - ROSES AND ALSTRO", "bunches": 40 },
+        { "numero": "006", "costingGroup": "CWH- GB NOVELTY",        "bunches": 24 },
+        { "numero": "007", "costingGroup": "CWH- GB MINI CARNATIONS","bunches": 56 }
+      ],
+      "sumaBunchesEsperada": 240,
+      "boxesHeader": 10,
+      "bunchesTotalEsperado": 2400
+    }
+  }
+}
