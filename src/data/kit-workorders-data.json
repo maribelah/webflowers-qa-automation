@@ -1,0 +1,11 @@
+{
+  "exitoso": {
+    "descripcion": "Crear Work Order vinculada a Sales Order con productos KIT",
+    "orderNoSalesOrder": "",
+    "dateToOffset": 1,
+    "boxesLinea1": 10,
+    "boxesLinea2": 10,
+    "mainTask": "House Made",
+    "payment": "Piece Work"
+  }
+}

@@ -16,13 +16,16 @@ export class DashboardPage extends BasePage {
   constructor(page: Page) {
     super(page);
     
-    this.contenedorPrincipal = page.locator('[data-testid="dashboard"], .dashboard, #dashboard');
+    this.contenedorPrincipal = page
+     .frameLocator('#top_Page2')
+     .locator('#inputSearch');
+
     this.nombreUsuarioBienvenida = page.locator('[data-testid="user-name"], .user-name, .username');
     this.menuNavegacion = page.locator('[data-testid="nav-menu"], nav, .navbar');
     this.btnLogout = page.locator('[data-testid="logout"], button:has-text("Salir"), a:has-text("Cerrar Sesión")');
   }
 
-  /**
+  /**  
    * Verifica si la página actual es el Dashboard
    * @returns true si está en el Dashboard
    */

@@ -5,6 +5,9 @@ package-lock.json
 # Variables de entorno reales (NUNCA subir al repo)
 .env
 
+# MCP — contiene API keys reales (NUNCA subir al repo)
+.mcp.json
+
 # Compilados de TypeScript
 dist/
 *.js

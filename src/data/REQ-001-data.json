@@ -1,0 +1,17 @@
+{
+  "exitoso": {
+    "usuario": "qaauto",
+    "password": "qaauto",
+    "descripcion": "Usuario válido con acceso al módulo Sales Order Entry"
+  },
+  "fallido": {
+    "usuario": "qaauto",
+    "password": "password_incorrecta",
+    "descripcion": "Contraseña incorrecta para usuario válido"
+  },
+  "borde": {
+    "usuario": "",
+    "password": "",
+    "descripcion": "Campos vacíos, validación de formulario"
+  }
+}

@@ -139,24 +139,24 @@ Estas métricas alimentan el dashboard gerencial en Power BI.
 
 ---
 
-## 📁 Estructura del Proyecto
+
+## 📁 Estructura del Proyecto (SDD v4.3)
 
 ```
 webflowers-qa-automation/
 ├── .github/
-│   ├── copilot-instructions.md       ← Contexto del agente Copilot
+│   ├── copilot-instructions.md       ← Contexto global del agente Copilot
 │   └── prompts/                      ← Prompts especializados
 ├── src/
-│   ├── pages/                        ← Page Object Model
-│   │   ├── BasePage.ts               ← Clase base
-│   │   ├── LoginPage.ts
-│   │   └── DashboardPage.ts
+│   ├── pages/                        ← Page Object Model (una clase por pantalla)
+│   │   ├── BasePage.ts               ← Clase base heredada por todas las páginas
+│   │   └── [Nombre]Page.ts
 │   ├── tasks/                        ← Flujos de negocio reutilizables
-│   │   └── AuthTasks.ts
+│   │   └── [Nombre]Tasks.ts
 │   ├── fixtures/                     ← Setup y teardown compartido
 │   │   └── base.fixture.ts
-│   ├── data/                         ← Datos de prueba en JSON
-│   │   └── loginData.json
+│   ├── data/                         ← Datos de prueba en JSON por REQ
+│   │   └── REQ-[ID]-data.json
 │   ├── utils/                        ← Utilidades del framework
 │   │   ├── envConfig.ts              ← Variables de entorno
 │   │   ├── dbHelper.ts               ← Conector a BD WebFlowers
@@ -165,13 +165,21 @@ webflowers-qa-automation/
 │   └── types/                        ← Tipos TypeScript compartidos
 │       └── index.ts
 ├── tests/
-│   └── modulo-login/
-│       ├── login-exitoso.spec.ts
-│       └── login-fallido.spec.ts
+│   ├── modulo-[nombre]/              ← Specs organizados por módulo del menú
+│   │   └── REQ-[ID]-[nombre].spec.ts
+│   └── specs-fuente/                 ← Especificaciones en lenguaje natural
+│       └── [modulo]/
+│           └── REQ-[ID].md           ← Prompt y análisis UI por requerimiento
+├── reports/
+│   ├── allure-results/
+│   ├── allure-report/
+│   ├── screenshots/
+│   └── outputs/
 ├── docs/
 │   ├── sql/
 │   │   └── create-qa-metrics-schema.sql
-│   └── webflowers-qa-automation-v4.1.md  ← SDD completo
+│   ├── webflowers-qa-automation-v4.3.md  ← SDD completo y actualizado
+│   └── ...
 ├── .env.example                      ← Plantilla de variables
 ├── .gitignore
 ├── package.json
@@ -179,6 +187,29 @@ webflowers-qa-automation/
 ├── tsconfig.json
 └── README.md
 ```
+
+---
+
+## 📖 Convenciones y reglas clave
+
+Este proyecto sigue convenciones estrictas definidas en [.github/copilot-instructions.md](.github/copilot-instructions.md) y el [SDD v4.3](docs/webflowers-qa-automation-v4.3.md):
+
+- **Page Classes:** PascalCase + `Page.ts` (ej: `LoginPage.ts`)
+- **Tests:** `REQ-ID` + kebab-case + `.spec.ts` (ej: `REQ-045-crear-pedido.spec.ts`)
+- **Datos de prueba:** `REQ-ID-data.json` (ej: `REQ-045-data.json`)
+- **Specs fuente:** `REQ-ID.md` en carpeta del módulo (ej: `specs-fuente/order-sales/REQ-045.md`)
+- **Localizadores:** Preferencia: `data-testid` → `role` → `text` → `css` → `xpath`
+- **Screenshots:** Nombre secuencial `01-descripcion.png`
+- **Sin hardcodeo:** URLs, credenciales y datos siempre desde `ENV` o JSON
+
+---
+
+## 📚 Documentación técnica
+
+- [Copilot Instructions](.github/copilot-instructions.md)
+- [SDD v4.3 — webflowers-qa-automation-v4.3.md](docs/webflowers-qa-automation-v4.3.md)
+
+---
 
 ---
 

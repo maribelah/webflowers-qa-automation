@@ -1,0 +1,29 @@
+{
+  "exitoso": {
+    "descripcion": "Crear Purchase Order con datos válidos — happy path",
+    "vendor": "Florexpo - Central",
+    "shipVia": "Delivery",
+    "orderDate": null,
+    "requiredDate": null,
+    "quantity": 10,
+    "unitPrice": 25.50
+  },
+  "fallido": {
+    "descripcion": "Crear Purchase Order sin vendor — campo obligatorio vacío",
+    "vendor": "",
+    "shipVia": "Delivery",
+    "orderDate": null,
+    "requiredDate": null,
+    "quantity": 10,
+    "unitPrice": 25.50
+  },
+  "borde": {
+    "descripcion": "Crear Purchase Order con requiredDate igual a orderDate — caso límite",
+    "vendor": "Florexpo - Central",
+    "shipVia": "Delivery",
+    "orderDate": null,
+    "requiredDate": null,
+    "quantity": 1,
+    "unitPrice": 0.01
+  }
+}

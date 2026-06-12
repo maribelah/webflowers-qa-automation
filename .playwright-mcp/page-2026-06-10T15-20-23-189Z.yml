@@ -1,0 +1,93 @@
+- generic [active] [ref=e1]:
+  - main [ref=e2]:
+    - generic [ref=e4]:
+      - text: Inventory - Production Reporting
+      - button "Help" [ref=e5] [cursor=pointer]
+    - generic [ref=e8]:
+      - generic [ref=e9]:
+        - generic [ref=e10]:
+          - generic [ref=e11]:
+            - generic [ref=e12]: Customer Group
+            - listbox "Multiple select" [ref=e14]:
+              - generic:
+                - generic: Search by...
+          - generic [ref=e15]:
+            - generic [ref=e16]: Customer
+            - listbox "Multiple select" [ref=e18]:
+              - generic:
+                - generic: Search by...
+          - generic [ref=e19]:
+            - generic [ref=e20]: Task
+            - listbox "Multiple select" [ref=e22]:
+              - generic:
+                - generic: Search by...
+          - generic [ref=e23]:
+            - button "Search" [ref=e24] [cursor=pointer]
+            - button "Clear" [ref=e25] [cursor=pointer]
+        - generic [ref=e26]:
+          - generic [ref=e27]: "Sub Total:"
+          - paragraph [ref=e30]: "Boxes: 0"
+          - paragraph [ref=e33]: "Bunches: 0"
+      - button "Start Reporting" [disabled] [ref=e35]
+      - generic [ref=e37]:
+        - text:       
+        - grid [ref=e39]:
+          - rowgroup [ref=e40]:
+            - row "Task Product Name Order Id Costing Group Box Type Boxes Bunches" [ref=e41]:
+              - columnheader "Task" [ref=e42] [cursor=pointer]:
+                - text: 
+                - generic [ref=e43]: 
+                - generic [ref=e44]: Task
+                - text:    
+              - columnheader "Product Name" [ref=e45] [cursor=pointer]:
+                - text: 
+                - generic [ref=e46]: 
+                - generic [ref=e47]: Product Name
+                - text:    
+              - columnheader "Order Id" [ref=e48] [cursor=pointer]:
+                - text: 
+                - generic [ref=e49]: 
+                - generic [ref=e50]: Order Id
+                - text:    
+              - columnheader "Costing Group" [ref=e51] [cursor=pointer]:
+                - text: 
+                - generic [ref=e52]: 
+                - generic [ref=e53]: Costing Group
+                - text:    
+              - columnheader "Box Type" [ref=e54] [cursor=pointer]:
+                - text: 
+                - generic [ref=e55]: 
+                - generic [ref=e56]: Box Type
+                - text:    
+              - columnheader "Boxes" [ref=e57] [cursor=pointer]:
+                - text: 
+                - generic [ref=e58]: 
+                - generic [ref=e59]: Boxes
+                - text:    
+              - columnheader "Bunches" [ref=e60] [cursor=pointer]:
+                - text: 
+                - generic [ref=e61]: 
+                - generic [ref=e62]: Bunches
+                - text:    
+          - rowgroup [ref=e63]
+        - text:    
+  - generic [ref=e69]:
+    - generic [ref=e72]: Accessibility
+    - generic [ref=e76]:
+      - text: Contrast
+      - generic [ref=e77]:
+        - generic [ref=e78]: Filters
+        - generic [ref=e79]:
+          - button [ref=e80] [cursor=pointer]
+          - button [ref=e81] [cursor=pointer]
+          - button [ref=e82] [cursor=pointer]
+      - text: Text
+      - generic [ref=e84]: Font Size
+      - generic [ref=e90]: Letter Spacing
+      - generic [ref=e96]: Line Height
+      - generic [ref=e101]:
+        - generic [ref=e102]: Legible Font
+        - generic [ref=e103]: A
+      - text: Assist
+      - generic [ref=e105]: Delete Cookies
+      - generic [ref=e109]: Disable Animations
