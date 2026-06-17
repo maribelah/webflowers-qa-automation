@@ -26,11 +26,11 @@ test.describe('Módulo Login — Autenticación de usuarios', () => {
     });
 
     await test.step('Validar acceso al Dashboard', async () => {
-      // Validar que la URL contiene 'dashboard'
-      await expect(page).toHaveURL(/dashboard|home|inicio/i);
+      // URL real post-login en WebFlowers: Main.aspx (con session token)
+      await expect(page).toHaveURL(/Main\.aspx/i, { timeout: 15000 });
       
-      // Validar que el Dashboard está visible
-      await expect(dashboardPage.contenedorPrincipal).toBeVisible();
+      // Validar que el Dashboard está visible (iframe menú lateral presente)
+      await expect(dashboardPage.contenedorPrincipal).toBeVisible({ timeout: 15000 });
       
       await page.screenshot({
         path: 'reports/screenshots/03-dashboard-cargado.png',

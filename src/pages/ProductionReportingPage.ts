@@ -180,13 +180,6 @@ export class ProductionReportingPage extends BasePage {
 
   // ── Vista de componentes (después de Start Reporting) ─────────────────────
 
-  /** Verifica que la pantalla de detalle del reporte está cargada tras Start Reporting */
-  async estaVistaReporteCargada(): Promise<boolean> {
-    return this.frameCenter
-      .locator("//div[@class='d-flex justify-content-between align-items-center']")
-      .isVisible();
-  }
-
   /** Verifica que la vista de componentes por caja está cargada */
   async estaVistaComponentesCargada(): Promise<boolean> {
     return this.frameCenter

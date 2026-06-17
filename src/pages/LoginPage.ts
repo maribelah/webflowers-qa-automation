@@ -48,7 +48,7 @@
      * @returns Texto del mensaje de error
      */
     async obtenerMensajeError(): Promise<string> {
-      return await this.obtenerTexto(this.mensajeError);
+      return await this.mensajeError.textContent() ?? '';
     }
 
     /**
@@ -56,6 +56,6 @@
      * @returns true si está en la página de login
      */
     async estaEnLogin(): Promise<boolean> {
-      return await this.estaVisible(this.btnIngresar);
+      return await this.btnIngresar.isVisible();
     }
   }

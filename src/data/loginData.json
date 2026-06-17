@@ -1,8 +1,17 @@
 {
   "exitoso": {
     "usuario": "qaauto",
-    "password": "qaauto!",
+    "password": "qaauto",
     "descripcion": "Usuario con acceso completo al sistema"
+  },
+  "fallido": {
+    "usuario": "usuarioinvalido",
+    "password": "passwordincorrecta",
+    "descripcion": "Credenciales inválidas para validar rechazo de login"
+  },
+  "borde": {
+    "usuario": "",
+    "password": "",
+    "descripcion": "Campos vacíos para validar validación del formulario"
   }
- 
 }

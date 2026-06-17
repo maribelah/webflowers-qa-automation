@@ -190,6 +190,13 @@ export class WorkOrdersPage extends BasePage {
     const select = this.frameCenter.locator("//select[@id='cmbProductionGroup']");
     await select.waitFor({ state: 'visible', timeout: 10000 });
 
+    // WebFlowers mantiene el select en estado disabled en modo visualización.
+    // Remover el atributo disabled vía JS para poder interactuar con él.
+    await select.evaluate((el: HTMLSelectElement) => {
+      el.disabled = false;
+      el.removeAttribute('disabled');
+    });
+
     // Seleccionar la opción — dispara change/input events
     await select.selectOption({ index: indice });
 

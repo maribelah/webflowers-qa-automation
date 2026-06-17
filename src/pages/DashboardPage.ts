@@ -16,11 +16,11 @@ export class DashboardPage extends BasePage {
   constructor(page: Page) {
     super(page);
     
-    this.contenedorPrincipal = page
-     .frameLocator('#top_Page2')
-     .locator('#inputSearch');
+    // iframe#left_page1 (menú lateral) siempre está presente tras el login exitoso
+    this.contenedorPrincipal = page.locator('iframe#left_page1');
 
-    this.nombreUsuarioBienvenida = page.locator('[data-testid="user-name"], .user-name, .username');
+    // Marcador visual del menú — confirmado presente tras login
+    this.nombreUsuarioBienvenida = page.locator('iframe#top_Page2');
     this.menuNavegacion = page.locator('[data-testid="nav-menu"], nav, .navbar');
     this.btnLogout = page.locator('[data-testid="logout"], button:has-text("Salir"), a:has-text("Cerrar Sesión")');
   }
@@ -30,15 +30,15 @@ export class DashboardPage extends BasePage {
    * @returns true si está en el Dashboard
    */
   async estaEnDashboard(): Promise<boolean> {
-    return await this.estaVisible(this.contenedorPrincipal);
+    return await this.contenedorPrincipal.isVisible();
   }
 
   /**
    * Obtiene el nombre del usuario mostrado en la bienvenida
-   * @returns Nombre del usuario actualmente logueado
+   * @returns Texto del header (contiene usuario y empresa activa)
    */
   async obtenerNombreUsuario(): Promise<string> {
-    return await this.obtenerTexto(this.nombreUsuarioBienvenida);
+    return await this.frameHeader.locator('body').textContent() ?? '';
   }
 
   /**
