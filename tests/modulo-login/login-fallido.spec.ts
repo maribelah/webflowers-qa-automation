@@ -67,12 +67,15 @@ test.describe('Módulo Login — Casos negativos de autenticación', () => {
     });
 
     await test.step('Validar que muestra validación de formulario', async () => {
-      // Validar que permanece en login (no navega)
+      // Validar que permanece en login (no navega a un dashboard)
       const estaEnLogin = await loginPage.estaEnLogin();
       expect(estaEnLogin).toBe(true);
-      
-      // Validar que la URL no cambia
-      await expect(page).toHaveURL(/login|auth|signin|^\/$|^\/$/i);
+
+      // Validar mensaje de error o validación de formulario en pantalla
+      await expect(loginPage.mensajeError).toBeVisible({ timeout: 10000 });
+      const mensajeError = await loginPage.obtenerMensajeErrorVisible(10000);
+      expect(mensajeError).not.toBeNull();
+      expect(mensajeError?.length).toBeGreaterThan(0);
       
       await page.screenshot({
         path: 'reports/screenshots/03-validacion-formulario.png',

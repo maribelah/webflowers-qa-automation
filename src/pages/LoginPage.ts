@@ -21,7 +21,9 @@ export class LoginPage extends BasePage {
     this.inputUsuario = page.locator('#txtUserName');
     this.inputPassword = page.locator('#txtPassword');
     this.btnIngresar = page.locator('#btnSigIn');
-    this.mensajeError = page.locator('[data-testid="error-message"], .error-message, .alert-danger');
+    this.mensajeError = page
+      .locator('[data-testid="error-message"], .error-message, .alert-danger, #lblError, #lblMessage')
+      .or(page.getByText(/Invalid Log Info|Please Try Again/i));
   }
 
   /**
@@ -48,6 +50,22 @@ export class LoginPage extends BasePage {
    */
   async obtenerMensajeError(): Promise<string> {
     return await this.obtenerTexto(this.mensajeError);
+  }
+
+  /**
+   * Obtiene el mensaje de error si aparece despuÃ©s de intentar autenticar.
+   * @returns Texto del error visible o null si no hay error de login
+   */
+  async obtenerMensajeErrorVisible(timeout: number = 3000): Promise<string | null> {
+    const mensaje = this.mensajeError.first();
+
+    try {
+      await mensaje.waitFor({ state: 'visible', timeout });
+      const texto = await mensaje.textContent();
+      return texto?.trim() || 'Error de login visible sin texto';
+    } catch {
+      return null;
+    }
   }
 
   /**

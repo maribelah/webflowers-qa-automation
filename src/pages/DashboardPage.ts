@@ -1,4 +1,4 @@
-import { Page, Locator } from '@playwright/test';
+import { Page, Locator, FrameLocator } from '@playwright/test';
 import { BasePage } from './BasePage';
 
 /**
@@ -9,6 +9,9 @@ import { BasePage } from './BasePage';
  */
 export class DashboardPage extends BasePage {
   readonly contenedorPrincipal: Locator;
+  readonly topHeaderFrame: FrameLocator;
+  readonly headerLogoContainer: Locator;
+  readonly txtWFLabel: Locator;
   readonly nombreUsuarioBienvenida: Locator;
   readonly menuNavegacion: Locator;
   readonly btnLogout: Locator;
@@ -17,7 +20,12 @@ export class DashboardPage extends BasePage {
     super(page);
     
     this.contenedorPrincipal = page.locator('[data-testid="dashboard"], .dashboard, #dashboard');
-    this.nombreUsuarioBienvenida = page.locator('[data-testid="user-name"], .user-name, .username');
+    this.topHeaderFrame = page.frameLocator('iframe#top_Page2');
+    this.headerLogoContainer = this.topHeaderFrame.locator('#headerWFLogoContainer');
+    this.txtWFLabel = this.topHeaderFrame.locator('#txtWFLabel');
+    this.nombreUsuarioBienvenida = this.topHeaderFrame
+      .locator('#lblUserName, #lblUser, #lblWelcome, #lblUsuario, [id*="User"], [id*="Usuario"]')
+      .or(page.locator('[data-testid="user-name"], .user-name, .username'));
     this.menuNavegacion = page.locator('[data-testid="nav-menu"], nav, .navbar');
     this.btnLogout = page.locator('[data-testid="logout"], button:has-text("Salir"), a:has-text("Cerrar Sesión")');
   }
@@ -27,7 +35,7 @@ export class DashboardPage extends BasePage {
    * @returns true si está en el Dashboard
    */
   async estaEnDashboard(): Promise<boolean> {
-    return await this.estaVisible(this.contenedorPrincipal);
+    return await this.estaVisible(this.txtWFLabel);
   }
 
   /**
@@ -35,7 +43,13 @@ export class DashboardPage extends BasePage {
    * @returns Nombre del usuario actualmente logueado
    */
   async obtenerNombreUsuario(): Promise<string> {
-    return await this.obtenerTexto(this.nombreUsuarioBienvenida);
+    try {
+      await this.nombreUsuarioBienvenida.first().waitFor({ state: 'visible', timeout: 5000 });
+      const texto = await this.nombreUsuarioBienvenida.first().textContent();
+      return texto?.trim() || '';
+    } catch {
+      return '';
+    }
   }
 
   /**

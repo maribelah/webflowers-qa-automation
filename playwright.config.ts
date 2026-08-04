@@ -35,6 +35,8 @@ export default defineConfig({
 
   /* Configuración global de ejecución */
   use: {
+    /*Ejecutar modo visible*/
+    
     /* Screenshots solo en fallos */
     screenshot: 'only-on-failure',
     
