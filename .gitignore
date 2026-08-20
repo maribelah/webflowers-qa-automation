@@ -5,6 +5,10 @@ package-lock.json
 # Variables de entorno reales (NUNCA subir al repo)
 .env
 
+# MCP — contiene API keys reales (NUNCA subir al repo)
+.mcp.json
+# Archivos temporales generados por Playwright MCP
+.playwright-mcp/
 # Compilados de TypeScript
 dist/
 *.js
