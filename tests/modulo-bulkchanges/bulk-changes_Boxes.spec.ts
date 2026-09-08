@@ -668,6 +668,7 @@ test.describe('Módulo Bulk Changes — Flujo principal', () => {
       const fechaDesdeInputXpath = 'xpath=/html/body/form/div[3]/div[1]/table/tbody/tr[1]/td/table/tbody/tr/td[1]/table/tbody/tr[3]/td[6]/input';
       const fechaHastaInputXpath = 'xpath=/html/body/form/div[3]/div[1]/table/tbody/tr[1]/td/table/tbody/tr/td[1]/table/tbody/tr[4]/td[6]/input';
       const actualizarXpath = 'xpath=/html/body/form/div[3]/div[1]/table/tbody/tr[2]/td/table/tbody/tr/td[1]/div/input[1]';
+      let filtroFechaUCActivado = false;
 
       const usarFrameAsignacion = async () => {
         const prefijoInput = asignacionFrame.locator(prefijoInputXpath);
@@ -699,6 +700,60 @@ test.describe('Módulo Bulk Changes — Flujo principal', () => {
           input.dispatchEvent(new Event('change', { bubbles: true }));
           input.dispatchEvent(new Event('blur', { bubbles: true }));
         }, valor);
+      };
+
+      const seleccionarFiltroFechaUCEnPagina = async (pageOrFrame: any) => {
+        const cambioRealizado = await pageOrFrame.locator('body').evaluate(() => {
+          const normalizar = (valor: string) => String(valor).trim().replace(/\s+/g, ' ').toUpperCase();
+          const labels = Array.from(document.querySelectorAll('td, label, span, div')) as HTMLElement[];
+          const labelFecha = labels.find((element) => /^FECHA:?$/.test(normalizar(element.innerText || element.textContent || '')));
+          const fila = labelFecha?.closest('tr');
+          const celdas = fila ? Array.from(fila.children) as HTMLElement[] : [];
+          const indiceLabel = labelFecha ? celdas.findIndex((cell) => cell === labelFecha || cell.contains(labelFecha)) : -1;
+
+          const selectsCandidatos = [
+            ...(indiceLabel >= 0 ? celdas.slice(indiceLabel + 1).flatMap((cell) => Array.from(cell.querySelectorAll('select'))) : []),
+            ...Array.from(document.querySelectorAll('select')).filter((select) => {
+              const rect = select.getBoundingClientRect();
+              const labelRect = labelFecha?.getBoundingClientRect();
+              return !!labelRect && rect.left > labelRect.left && Math.abs(rect.top - labelRect.top) < 30;
+            }),
+          ] as HTMLSelectElement[];
+
+          const selectFecha = selectsCandidatos.find((select) =>
+            Array.from(select.options).some((option) => normalizar(option.value) === 'UC' || normalizar(option.textContent || '') === 'UC')
+          );
+
+          if (!selectFecha) return false;
+
+          const opcionUC = Array.from(selectFecha.options).find((option) =>
+            normalizar(option.value) === 'UC' || normalizar(option.textContent || '') === 'UC'
+          );
+          if (!opcionUC) return false;
+
+          selectFecha.value = opcionUC.value;
+          selectFecha.dispatchEvent(new Event('input', { bubbles: true }));
+          selectFecha.dispatchEvent(new Event('change', { bubbles: true }));
+          selectFecha.dispatchEvent(new Event('blur', { bubbles: true }));
+          return true;
+        });
+
+        expect(cambioRealizado, 'Debe poder cambiar el filtro Fecha a UC cuando no se encuentran ordenes').toBeTruthy();
+      };
+
+      const aplicarFiltroFechaUCAsignacion = async () => {
+        if (filtroFechaUCActivado) return;
+
+        if (usarFrame) {
+          const centerFrame = await comprasPage.locator('iframe#center_page').elementHandle().then((iframe) => iframe?.contentFrame());
+          if (!centerFrame) throw new Error('No se encontro iframe center_page para cambiar el filtro Fecha a UC');
+          await seleccionarFiltroFechaUCEnPagina(centerFrame);
+        } else {
+          await seleccionarFiltroFechaUCEnPagina(comprasPage);
+        }
+
+        filtroFechaUCActivado = true;
+        console.log('✅ No se encontraron ordenes con el filtro de fecha actual. Filtro Fecha cambiado a UC.');
       };
 
       const aplicarRangoFechasMesAsignacion = async () => {
@@ -807,9 +862,22 @@ test.describe('Módulo Bulk Changes — Flujo principal', () => {
       const valorBoxesEsperado = valorBOXESAsignado.toString();
       let valorBoxesVisible = false;
       const maxIntentosAsignacion = 5;
+      let valoresInicialesTotalAsignacion = await obtenerValoresTotalAsignacion();
+
+      if (valoresInicialesTotalAsignacion.length === 0) {
+        fs.writeFileSync(
+          'reports/html/16-betagr-total-candidatos-filtro-fecha-original.json',
+          JSON.stringify(valoresInicialesTotalAsignacion, null, 2)
+        );
+        await aplicarFiltroFechaUCAsignacion();
+        await aplicarBusquedaAsignacion();
+        await esperarCargaAsignacion();
+        await tomarScreenshotPagina(comprasPage, 'reports/screenshots/16-betagr-asignacion-filtro-uc.png');
+        valoresInicialesTotalAsignacion = await obtenerValoresTotalAsignacion();
+      }
 
       for (let intento = 1; intento <= maxIntentosAsignacion; intento++) {
-        const valoresTotalAsignacion = await obtenerValoresTotalAsignacion();
+        const valoresTotalAsignacion = intento === 1 ? valoresInicialesTotalAsignacion : await obtenerValoresTotalAsignacion();
         fs.writeFileSync(
           `reports/html/16-betagr-total-candidatos-intento-${intento}.json`,
           JSON.stringify(valoresTotalAsignacion, null, 2)

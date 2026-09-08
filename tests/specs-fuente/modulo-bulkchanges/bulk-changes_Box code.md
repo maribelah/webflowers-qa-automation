@@ -5,7 +5,7 @@
 @workspace /crear-test
 Modulo: Sales
 Requerimiento: Bulk Changes
-Funcionalidad: Validar flujo principal de Bulk Changes para buscar una orden, seleccionar el primer registro, aplicar cambio masivo de BOX CODE y verificar el valor aplicado en Order Entry y Asignacion de ordenes.
+Funcionalidad: Validar flujo principal de Bulk Changes para buscar una orden, seleccionar un registro que tenga al menos un BOX CODE disponible diferente al actual, aplicar cambio masivo de BOX CODE y verificar el valor aplicado en Order Entry y Asignacion de ordenes.
 
 Pasos del flujo exitoso:
   1. Navegar a la URL del ambiente activo usando ENV.url.
@@ -16,18 +16,20 @@ Pasos del flujo exitoso:
   6. Esperar 10 segundos y hacer click en el elemento indicado del formulario.
   7. Seleccionar Box Code desde el dropdown.
   8. Seleccionar el segundo codigo que aparezca; si coincide con el Box Code actual de la fila, seleccionar el siguiente codigo disponible.
-  9. Guardar el valor Box.
-  10. Hacer click en Apply y confirmar el guardado.
-  11. Navegar a Sales -> New -> Order Entry.
-  12. Buscar la orden usando el prefijo del Order Reference capturado.
-  13. Validar que el valor Box asignado se visualice en Order Entry.
-  14. Abrir BETA GR y navegar a Compras -> Asignacion de ordenes.
-  15. Buscar la orden capturada y validar que el campo Caja coincida con el valor Box asignado en QU desde el modulo Bulk Changes.
-  16. Si Caja no coincide, refrescar la busqueda hasta 5 intentos.
-  17. Cuando el valor de Caja coincida, cerrar las paginas del navegador y finalizar el test.
+  9. Si el registro seleccionado no tiene ningun Box Code disponible diferente al actual, desmarcarlo, validar la siguiente fila visible y repetir la evaluacion hasta encontrar una Order Reference valida.
+  10. Si al recorrer toda la pantalla no existe una fila que cumpla la condicion, finalizar con el mensaje: "No es posible encontrar una Order Reference que cumpla con las condiciones para realizar la prueba".
+  11. Guardar el valor Box.
+  12. Hacer click en Apply y confirmar el guardado.
+  13. Navegar a Sales -> New -> Order Entry.
+  14. Buscar la orden usando el prefijo del Order Reference capturado.
+  15. Validar que el valor Box asignado se visualice en Order Entry.
+  16. Abrir BETA GR y navegar a Compras -> Asignacion de ordenes.
+  17. Buscar la orden capturada y validar que el campo Caja coincida con el valor Box asignado en QU desde el modulo Bulk Changes.
+  18. Si Caja no coincide, refrescar la busqueda hasta 5 intentos.
+  19. Cuando el valor de Caja coincida, cerrar las paginas del navegador y finalizar el test.
 
 Resultado esperado:
-El cambio masivo de Box Code se aplica correctamente sobre la orden seleccionada y el valor se refleja en Order Entry y en Asignacion de ordenes.
+El cambio masivo de Box Code se aplica correctamente sobre una orden que tenga al menos una opcion de Box Code diferente al valor actual, y el valor se refleja en Order Entry y en Asignacion de ordenes. Si no existe una Order Reference visible que cumpla la condicion, el test debe finalizar con el mensaje controlado definido.
 
 Validacion BD: No aplica
 Page Class disponible: No crear Page Class; implementar navegacion con frames y localizadores resilientes dentro del spec.
@@ -53,9 +55,9 @@ Artefactos generados:
 ### Datos y variables del flujo
 - Credenciales y URL: `ENV.url`, `ENV.usuario`, `ENV.password`
 - `orderReferenceCapturado`: prefijo de 6 caracteres extraido desde Bulk Changes, formato `XX####`
-- `orderReferenceCompletoCapturado`: referencia completa capturada desde el primer registro
+- `orderReferenceCompletoCapturado`: referencia completa capturada desde el primer registro que cumpla la condicion de tener un Box Code disponible diferente al actual
 - `valorBoxCodeActual`: Box Code capturado desde la fila seleccionada antes de aplicar el cambio
-- `valorBoxCodeAsignado`: codigo seleccionado desde el select del modal `Set Box Code Parameters`, iniciando en el segundo codigo disponible y saltando al siguiente si coincide con `valorBoxCodeActual`
+- `valorBoxCodeAsignado`: codigo seleccionado desde el select del modal `Set Box Code Parameters`, iniciando en el segundo codigo disponible, saltando al siguiente si coincide con `valorBoxCodeActual`, y recorriendo filas visibles si el registro actual no tiene una opcion diferente
 - `maxIntentosAsignacion`: 5 intentos para validar `Caja`
 - Documento de evidencia: `C:\Users\DianaSPS\Documents\Pruebas Bulk Changes\Bulk-changes_BoxCode_AAAAMMDD.docx`
 
@@ -82,6 +84,10 @@ Artefactos generados:
 - Validacion posterior a Search: buscar texto con formato `[A-Z]{2}\d{4}`
 - Checkbox primer registro:
   - `xpath=/html/body/div/div/div[1]/div/div[1]/div[2]/div[2]/div/div[1]/div[2]/span/input`
+- Filas visibles evaluables:
+  - `.MuiDataGrid-row`
+  - `[role="row"][data-rowindex]`
+  - checkbox por fila: `input[type="checkbox"]`
 - Elemento que abre dropdown de campos:
   - `xpath=/html/body/div/div/div[2]/div/div[1]/span/span[2]/span/div/div/div`
 - Opcion Box Code:
@@ -95,6 +101,9 @@ Artefactos generados:
   - se intenta seleccionar el segundo codigo disponible con `selectOption`
   - si el segundo codigo coincide con el Box Code actual de la fila, se selecciona el siguiente codigo disponible
   - se valida que exista un Box Code diferente al actual antes de guardar
+  - si no hay un Box Code diferente para la fila seleccionada, se cierra el modal con `Escape`, se desmarca la fila actual, se marca la siguiente fila visible y se abre nuevamente el formulario `Box Code`
+  - se repite la evaluacion hasta encontrar una fila valida o hasta terminar las filas visibles de la pantalla
+  - error controlado cuando ninguna fila cumple: `No es posible encontrar una Order Reference que cumpla con las condiciones para realizar la prueba`
 - Boton Save del modal:
   - boton visible con texto `Save`
 - Boton Apply:
@@ -135,11 +144,15 @@ Artefactos generados:
   - se toma `value`, `textContent`, `title` o `aria-label`
   - se normaliza el texto eliminando espacios repetidos y pasando a mayusculas
   - se compara contra `valorBoxCodeAsignado`
+  - si el valor aun no aparece despues de la primera busqueda, se reintenta la busqueda en Order Entry hasta 5 intentos
+  - entre reintentos se espera 30 segundos para permitir propagacion del cambio aplicado
 - Evidencias:
   - `reports/html/12-order-entry.html`
   - `reports/html/12-order-entry-box-code-values.json`
+  - `reports/html/12-order-entry-box-code-values-intento-{intento}.json`
   - `reports/screenshots/12-order-entry.png`
   - `reports/screenshots/12-order-entry-frame.png`
+  - `reports/screenshots/12-order-entry-refresh-{intento}.png`
 
 ### BETA GR - Asignacion de ordenes
 - URL fija: `https://betagr.ghtcorptest.com/`
@@ -164,6 +177,10 @@ Artefactos generados:
   - `xpath=/html/body/form/div[3]/div[1]/table/tbody/tr[1]/td/table/tbody/tr/td[1]/table/tbody/tr[4]/td[2]/input`
 - Filtro Todos:
   - `xpath=/html/body/form/div[3]/div[1]/table/tbody/tr[1]/td/table/tbody/tr/td[1]/table/tbody/tr[1]/td[7]/div[2]/div[1]/div[1]/input`
+- Filtro Fecha:
+  - se ubica el selector asociado al label visible `Fecha`
+  - si no hay ordenes despues de buscar por prefijo con `Todos`, se selecciona `UC`
+  - despues de cambiar a `UC`, se ejecuta `Actualizar` nuevamente antes de validar `Caja`
 - Fecha desde calendario:
   - `xpath=/html/body/form/div[3]/div[1]/table/tbody/tr[1]/td/table/tbody/tr/td[1]/table/tbody/tr[3]/td[6]/img`
 - Fecha desde input:
@@ -183,6 +200,7 @@ Artefactos generados:
 - No se compara contra todos los textos visibles de la pantalla, para evitar falsos positivos con valores como `FBE`.
 - Se normalizan los valores eliminando espacios repetidos y pasando a mayusculas.
 - Se compara exactamente contra `valorBoxCodeAsignado`.
+- Si la busqueda inicial en BETA GR no devuelve ordenes (`Total Items` igual a 0 o mensaje `No se encontraron registros.`), se cambia el filtro `Fecha` a `UC`, se actualiza la grilla y se repite la lectura de candidatos.
 - Si no coincide, se refresca la busqueda y se espera 30 segundos antes del siguiente intento.
 - Maximo de intentos: 5.
 - Al coincidir, se cierran `comprasPage` y `page`, y el test finaliza.
@@ -214,7 +232,7 @@ Artefactos generados:
 3. WebFlowers BETA QU debe estar disponible en `ENV.url`.
 4. BETA GR debe estar disponible en `https://betagr.ghtcorptest.com/`.
 5. Debe existir al menos una orden visible en Bulk Changes con formato `[A-Z]{2}\d{4}`.
-6. El select del formulario Box Code debe tener al menos dos codigos disponibles y al menos uno diferente al Box Code actual.
+6. Debe existir al menos una fila visible cuyo Box Code actual tenga una opcion diferente disponible dentro del select del formulario Box Code.
 
 ### Pasos
 
@@ -224,7 +242,7 @@ Artefactos generados:
 4. Navegar en el menu lateral a Sales -> Bulk Changes usando `iframe#left_page1`.
 5. Ejecutar Search sin modificar fechas.
 6. Validar que cargue al menos un Order Reference con formato `[A-Z]{2}\d{4}`.
-7. Seleccionar el checkbox del primer registro.
+7. Seleccionar el checkbox del primer registro visible.
 8. Capturar el Order Reference completo, por ejemplo `PB9925-001`.
 9. Derivar el prefijo de 6 caracteres, por ejemplo `PB9925`.
 10. Capturar el Box Code actual de la fila seleccionada.
@@ -234,32 +252,39 @@ Artefactos generados:
 14. Leer todas las opciones del `select:visible`.
 15. Intentar seleccionar el segundo codigo disponible.
 16. Si el segundo codigo coincide con el Box Code actual de la fila, seleccionar el siguiente codigo disponible.
-17. Validar que el codigo elegido sea diferente al Box Code actual.
-18. Guardar con `Save`.
-19. Hacer click en `Apply`.
-20. Confirmar que Apply fue procesado con indicadores de exito por DOM, texto o estado del boton.
-21. Tomar evidencias antes, durante y despues del Apply.
-22. Navegar a Sales -> New -> Order Entry.
-23. Buscar la orden usando el prefijo capturado.
-24. Validar que el Box Code asignado se visualice en Order Entry.
-25. Abrir BETA GR en una nueva pagina.
-26. Iniciar sesion en BETA GR si la pantalla lo solicita.
-27. Navegar a Compras -> Asignacion de ordenes.
-28. Aplicar rango de fechas del mes actual.
-29. Ingresar el prefijo de la orden capturada.
-30. Seleccionar filtro Todos.
-31. Ejecutar Actualizar.
-32. Extraer candidatos visibles del campo `Caja`.
-33. Normalizar los candidatos eliminando espacios repetidos y pasando a mayusculas.
-34. Comparar exactamente los valores de la columna `Caja` contra el Box Code asignado en QU.
-35. Si no coincide, refrescar la busqueda y esperar 30 segundos antes del siguiente intento.
-36. Reintentar hasta un maximo de 5 intentos.
-37. Cuando `Caja` coincida, tomar evidencia final natural en GR.
-38. Cerrar las paginas del navegador y finalizar el test.
+17. Si no existe un codigo diferente disponible para ese registro, cerrar el modal, desmarcar la fila actual y seleccionar la siguiente fila visible.
+18. Para cada fila candidata, capturar Order Reference, prefijo, item y Box Code actual; abrir nuevamente `Box Code` y evaluar las opciones disponibles.
+19. Continuar recorriendo filas visibles hasta encontrar un registro con al menos una opcion de Box Code diferente al actual.
+20. Si no se encuentra una Order Reference valida en toda la pantalla, finalizar con el mensaje: `No es posible encontrar una Order Reference que cumpla con las condiciones para realizar la prueba`.
+21. Validar que el codigo elegido sea diferente al Box Code actual.
+22. Guardar con `Save`.
+23. Hacer click en `Apply`.
+24. Confirmar que Apply fue procesado con indicadores de exito por DOM, texto o estado del boton.
+25. Tomar evidencias antes, durante y despues del Apply.
+26. Navegar a Sales -> New -> Order Entry.
+27. Buscar la orden usando el prefijo capturado.
+28. Validar que el Box Code asignado se visualice en Order Entry.
+29. Si el Box Code aun no aparece en Order Entry, refrescar la busqueda y esperar 30 segundos antes del siguiente intento.
+30. Reintentar la validacion de Order Entry hasta un maximo de 5 intentos.
+31. Abrir BETA GR en una nueva pagina.
+32. Iniciar sesion en BETA GR si la pantalla lo solicita.
+33. Navegar a Compras -> Asignacion de ordenes.
+34. Aplicar rango de fechas del mes actual.
+35. Ingresar el prefijo de la orden capturada.
+36. Seleccionar filtro Todos.
+37. Ejecutar Actualizar.
+38. Si no se encuentran ordenes despues de buscar por prefijo con el filtro `Todos`, cambiar el filtro `Fecha` a `UC` y ejecutar `Actualizar` nuevamente.
+39. Extraer candidatos visibles del campo `Caja`.
+40. Normalizar los candidatos eliminando espacios repetidos y pasando a mayusculas.
+41. Comparar exactamente los valores de la columna `Caja` contra el Box Code asignado en QU.
+42. Si no coincide, refrescar la busqueda y esperar 30 segundos antes del siguiente intento.
+43. Reintentar hasta un maximo de 5 intentos.
+44. Cuando `Caja` coincida, tomar evidencia final natural en GR.
+45. Cerrar las paginas del navegador y finalizar el test.
 
 ### Resultado esperado
 
-El cambio masivo de Box Code se aplica correctamente en Bulk Changes, el valor queda visible en Order Entry y el campo `Caja` en BETA GR coincide con el Box Code asignado desde QU. Si el segundo codigo disponible es igual al Box Code actual, el test debe seleccionar el siguiente codigo disponible para garantizar que exista un cambio real.
+El cambio masivo de Box Code se aplica correctamente en Bulk Changes, el valor queda visible en Order Entry y el campo `Caja` en BETA GR coincide con el Box Code asignado desde QU. Si el registro seleccionado no tiene una opcion diferente disponible, el test debe evaluar los siguientes registros visibles hasta encontrar uno que permita un cambio real. Si no hay ordenes visibles en GR con el filtro de fecha inicial, la prueba cambia `Fecha` a `UC` y repite la busqueda antes de validar `Caja`. Si ninguna fila visible cumple, debe finalizar con el mensaje: `No es posible encontrar una Order Reference que cumpla con las condiciones para realizar la prueba`.
 
 ### Evidencias del caso
 
@@ -278,10 +303,12 @@ El cambio masivo de Box Code se aplica correctamente en Bulk Changes, el valor q
 - `reports/screenshots/11-final-state.png`
 - `reports/screenshots/12-order-entry.png`
 - `reports/screenshots/12-order-entry-frame.png`
+- `reports/screenshots/12-order-entry-refresh-{intento}.png`
 - `reports/screenshots/13-betagr-inicio.png`
 - `reports/screenshots/14-betagr-compras.png`
 - `reports/screenshots/15-betagr-asignacion-ordenes.png`
 - `reports/screenshots/16-betagr-asignacion-actualizada.png`
+- `reports/screenshots/16-betagr-asignacion-filtro-uc.png`, si aplica
 - `reports/screenshots/16-betagr-asignacion-refresh-{intento}.png`
 - `reports/screenshots/17-betagr-box-code-confirmado.png`
 - `reports/screenshots/18-betagr-box-code-evidencia-gr.png`
@@ -292,10 +319,14 @@ El cambio masivo de Box Code se aplica correctamente en Bulk Changes, el valor q
 - `reports/html/05a-antes-checkbox.html`
 - `reports/html/05b-despues-checkbox.html`
 - `reports/html/05-selected-row-box-code-debug.txt`
+- `reports/html/05-row-{fila}-debug.txt`
 - `reports/html/10-apply-final.html`
 - `reports/html/11-final-state.html`
 - `reports/html/12-order-entry.html`
 - `reports/html/12-order-entry-box-code-values.json`
+- `reports/html/12-order-entry-box-code-values-intento-{intento}.json`
+- `reports/html/16-betagr-total-items-filtro-fecha-original.json`, si aplica
+- `reports/html/16-betagr-total-items-filtro-uc.json`, si aplica
 - `reports/html/16-betagr-caja-candidatos-intento-{intento}.json`
 
 ---
@@ -337,18 +368,80 @@ Motivo del ajuste:
 
 ---
 
+## Ajuste de seleccion de fila Box Code 2026-08-31
+
+Se ajusto la seleccion inicial del registro para evitar que la prueba falle al tomar una fila cuyo Box Code actual no tiene opciones diferentes disponibles en el formulario `Set Box Code Parameters`.
+
+Nuevo comportamiento:
+
+- La prueba selecciona inicialmente el primer registro visible.
+- Si las opciones disponibles de Box Code no contienen ningun valor diferente al Box Code actual de esa fila, se cierra el modal, se desmarca esa fila y se valida la siguiente fila visible.
+- El recorrido continua hasta encontrar una Order Reference con al menos una opcion de Box Code diferente.
+- Si ninguna fila visible cumple la condicion, se finaliza con el mensaje controlado: `No es posible encontrar una Order Reference que cumpla con las condiciones para realizar la prueba`.
+
+Ejecucion validada:
+
+- Fecha: 2026-08-31.
+- Ordenes evaluadas sin alternativa diferente: `PD4628-001`, `PD4628-002`, `PD4628-003`, `PD4628-004`.
+- Orden seleccionada para ejecutar el cambio: `PD4628-005`.
+- Box Code actual capturado: `H`.
+- Box Code asignado: `Q`.
+- Confirmacion Apply: mensaje de exito detectado con `text=applied`.
+- Validacion QU Order Entry: Box Code `Q` visible para el prefijo `PD4628`.
+- Validacion BETA GR: campo `Caja` coincide con `Q` para `PD4628`.
+- Resultado: exitoso, `1 passed`.
+- Documento generado: `C:\Users\DianaSPS\Documents\Pruebas Bulk Changes\Bulk-changes_BoxCode_20260831.docx`.
+
+---
+
+## Ajuste 2026-09-01 - Filtro Fecha UC en GR
+
+Cuando BETA GR no devuelve ordenes despues de buscar por el prefijo capturado y activar el filtro `Todos`, la prueba debe cambiar el selector `Fecha` a `UC` y ejecutar `Actualizar` nuevamente. La validacion de `Caja` se realiza despues de ese fallback.
+
+Este ajuste cubre el mismo comportamiento observado en las pruebas de Bulk Changes donde la orden puede no aparecer con el filtro de fecha inicial, pero si estar disponible al cambiar `Fecha` a `UC`.
+
+### Ejecucion validada 2026-09-01
+
+Comando ejecutado:
+
+```powershell
+npm.cmd run test:bulkchanges:boxcode:visible:word
+```
+
+Resultado:
+
+- Estado: exitoso, `1 passed`.
+- Ambiente: BETA / `https://betaqu.ghtcorptest.com`.
+- Ordenes evaluadas sin alternativa diferente: `PD3941-001`, `PD3941-002`, `PD3941-003`.
+- Orden seleccionada para ejecutar el cambio: `PD4777-001`.
+- Prefijo usado para validaciones: `PD4777`.
+- Box Code actual capturado: `F`.
+- Box Code asignado: `H`.
+- Confirmacion Apply: proceso finalizado correctamente con indicador de exito.
+- Validacion QU Order Entry: Box Code `H` visible para el prefijo `PD4777`.
+- Validacion inicial BETA GR: no se encontraron ordenes con el filtro de fecha del mes actual y filtro `Todos`.
+- Fallback aplicado en BETA GR: cambio del filtro `Fecha` a `UC` y nueva ejecucion de `Actualizar`.
+- Validacion final BETA GR: campo `Caja` coincide con `H` para `PD4777`.
+- Documento generado: `C:\Users\DianaSPS\Documents\Pruebas Bulk Changes\Bulk-changes_BoxCode_20260901.docx`.
+- Imagenes incluidas en el documento: `22`.
+
+---
+
 ## Notas de ejecucion
 
 - El test usa frames de WebFlowers; los elementos del menu se buscan en `iframe#left_page1` y los modulos en `iframe#center_page`.
 - El formulario de Box Code usa un modal con un `select` HTML nativo, no un listbox de Material UI.
-- En la ejecucion validada, el segundo codigo disponible fue `E`, coincidio con el Box Code actual y por eso se selecciono `F`.
+- Cuando no exista una opcion diferente para la fila seleccionada, el formulario se cierra antes de cambiar a la siguiente fila porque el backdrop del modal bloquea la grilla.
+- En la ejecucion validada del 2026-08-31, las primeras cuatro filas tenian Box Code `H` sin alternativa diferente y la fila `PD4628-005` permitio asignar `Q`.
+- Si BETA GR no encuentra ordenes al buscar por prefijo con el filtro `Todos`, se cambia el filtro `Fecha` a `UC` y se vuelve a actualizar antes de evaluar `Caja`.
 - La validacion de BETA GR depende del encabezado `Caja`; si el texto del encabezado cambia, actualizar la expresion `/^(caja|box|box code):?$/i`.
 - La prueba incluye reintentos de navegacion a BETA GR si el dominio devuelve temporalmente `404 Web Site not found`.
 - La prueba no usa Page Class por decision del requerimiento.
 - La prueba no valida base de datos.
+- La validacion de Order Entry puede requerir reintentos por latencia en la propagacion del Box Code aplicado.
 - El cierre del navegador ocurre solo despues de que `Caja` coincide con el Box Code asignado en QU desde Bulk Changes.
 
 ---
 
 *webflowers-qa-automation - tests/specs-fuente/modulo-bulkchanges/bulk-changes_Box code.md*
-*Actualizado: 2026-08-19*
+*Actualizado: 2026-09-01*

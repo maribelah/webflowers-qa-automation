@@ -22,9 +22,11 @@ Pasos del flujo exitoso:
   12. Buscar la orden usando el prefijo del Order Reference capturado.
   13. Validar que el valor FOB Price asignado se visualice en Order Entry.
   14. Abrir BETA GR y navegar a Compras -> Asignacion de ordenes.
-  15. Buscar la orden capturada y validar que los primeros 3 numeros del campo Precio Unidad coincidan con el valor FOB Price asignado en QU desde el modulo Bulk Changes, sin tener en cuenta comas ni puntos.
-  16. Si Precio Unidad no coincide, refrescar la busqueda hasta 5 intentos.
-  17. Cuando el precio coincida, cerrar las paginas del navegador y finalizar el test.
+  15. Buscar la orden capturada con el filtro `Todos`.
+  16. Si no se encuentran ordenes despues de buscar por prefijo con el filtro `Todos`, cambiar el filtro `Fecha` a `UC` y actualizar nuevamente.
+  17. Validar que los primeros 3 numeros del campo Precio Unidad coincidan con el valor FOB Price asignado en QU desde el modulo Bulk Changes, sin tener en cuenta comas ni puntos.
+  18. Si Precio Unidad no coincide, refrescar la busqueda hasta 5 intentos.
+  19. Cuando el precio coincida, cerrar las paginas del navegador y finalizar el test.
 
 Resultado esperado:
 El cambio masivo de Precio se aplica correctamente sobre la orden seleccionada y el valor se refleja en Order Entry y en Asignacion de ordenes.
@@ -56,6 +58,7 @@ Artefactos generados:
 - `valorPriceAsignado`: valor aleatorio decimal entre `1.00` y `3.00`, generado con un entero y dos decimales
 - `maxIntentosAsignacion`: 5 intentos para validar `Precio Unidad`
 - Documento de evidencia: `C:\Users\DianaSPS\Documents\Pruebas Bulk Changes\Bulk-changes-Price_AAAAMMDD.docx`
+- Las imagenes del documento Word deben conservarse completas, sin recortes por escalado.
 
 ### Navegacion inicial
 - URL ambiente activo: `page.goto(ENV.url, { waitUntil: 'domcontentloaded' })`
@@ -155,6 +158,10 @@ Artefactos generados:
   - `xpath=/html/body/form/div[3]/div[1]/table/tbody/tr[1]/td/table/tbody/tr/td[1]/table/tbody/tr[4]/td[2]/input`
 - Filtro Todos:
   - `xpath=/html/body/form/div[3]/div[1]/table/tbody/tr[1]/td/table/tbody/tr/td[1]/table/tbody/tr[1]/td[7]/div[2]/div[1]/div[1]/input`
+- Filtro Fecha:
+  - se ubica el selector asociado al label visible `Fecha`
+  - si no hay ordenes despues de buscar por prefijo con `Todos`, se selecciona `UC`
+  - despues de cambiar a `UC`, se ejecuta `Actualizar` nuevamente antes de validar `Precio Unidad`
 - Fecha desde calendario:
   - `xpath=/html/body/form/div[3]/div[1]/table/tbody/tr[1]/td/table/tbody/tr/td[1]/table/tbody/tr[3]/td[6]/img`
 - Fecha desde input:
@@ -175,10 +182,16 @@ Artefactos generados:
 - Se extraen los primeros 3 numeros de cada candidato de `Precio Unidad`.
 - Se extraen los primeros 3 numeros del FOB Price asignado en QU desde el modulo Bulk Changes (`valorPriceAsignado`).
 - Se comparan solo esos 3 numeros.
+- Si la busqueda inicial en BETA GR no devuelve ordenes (`Total Items` igual a 0), se cambia el filtro `Fecha` a `UC`, se actualiza la grilla y se repite la lectura de candidatos.
 - Ejemplo: FOB Price asignado en QU desde Bulk Changes `1.51` coincide con Precio Unidad `151` porque ambos valores normalizan sus primeros 3 numeros a `151`.
 - Si despues de quitar separadores quedan menos de 3 numeros, se completa con ceros a la derecha para comparar siempre una clave de 3 numeros.
 - Si no coincide, se refresca la busqueda y se espera 30 segundos antes del siguiente intento.
 - Maximo de intentos: 5.
+- Cuando se encuentra el precio coincidente en GR, el valor debe enfocarse visualmente antes de tomar la evidencia final.
+- El enfoque visual para la evidencia final debe restringirse a valores ubicados debajo del encabezado `Precio Unidad` y alineados horizontalmente con esa columna.
+- No debe resaltarse ningun valor coincidente en columnas distintas, por ejemplo `Pendiente`, aunque sus primeros 3 numeros coincidan.
+- Si no se puede ubicar visualmente el valor coincidente dentro de la columna `Precio Unidad`, la prueba debe fallar para evitar generar evidencia incorrecta.
+- El resaltado visual del precio coincidente en `Precio Unidad` debe usar color verde, porque representa una validacion exitosa.
 - Al coincidir, se registra el intento exitoso, se cierran `comprasPage` y `page`, y el test finaliza.
 - Evidencias por intento:
   - `reports/html/16-betagr-precio-unidad-candidatos-intento-{intento}.json`
@@ -186,6 +199,7 @@ Artefactos generados:
   - `reports/screenshots/16-betagr-asignacion-refresh-{intento}.png`
 - Evidencia final:
   - `reports/screenshots/17-betagr-precio-actualizado.png`
+  - `reports/screenshots/18-betagr-precio-evidencia-gr.png`
 
 ---
 
@@ -240,18 +254,21 @@ Artefactos generados:
 27. Ingresar el prefijo de la orden capturada.
 28. Seleccionar filtro Todos.
 29. Ejecutar Actualizar.
-30. Extraer candidatos visibles del campo `Precio Unidad`.
-31. Normalizar los candidatos eliminando puntos, comas, simbolos de moneda y caracteres no numericos.
-32. Extraer los primeros 3 numeros del `FOB Price` asignado en QU.
-33. Comparar los primeros 3 numeros de `Precio Unidad` contra los primeros 3 numeros del `FOB Price`.
-34. Si no coincide, refrescar la busqueda y esperar 30 segundos antes del siguiente intento.
-35. Reintentar hasta un maximo de 5 intentos.
-36. Cuando el precio coincida, tomar la evidencia final `17-betagr-precio-actualizado.png`.
-37. Cerrar las paginas del navegador y finalizar el test.
+30. Si no se encuentran ordenes despues de buscar por prefijo con el filtro `Todos`, cambiar el filtro `Fecha` a `UC` y ejecutar `Actualizar` nuevamente.
+31. Extraer candidatos visibles del campo `Precio Unidad`.
+32. Normalizar los candidatos eliminando puntos, comas, simbolos de moneda y caracteres no numericos.
+33. Extraer los primeros 3 numeros del `FOB Price` asignado en QU.
+34. Comparar los primeros 3 numeros de `Precio Unidad` contra los primeros 3 numeros del `FOB Price`.
+35. Si no coincide, refrescar la busqueda y esperar 30 segundos antes del siguiente intento.
+36. Reintentar hasta un maximo de 5 intentos.
+37. Cuando el precio coincida, enfocar visualmente el valor coincidente dentro de la columna `Precio Unidad` en GR.
+38. Resaltar en verde el valor coincidente de `Precio Unidad` para indicar evidencia exitosa.
+39. Tomar las evidencias finales `17-betagr-precio-actualizado.png` y `18-betagr-precio-evidencia-gr.png`.
+40. Cerrar las paginas del navegador y finalizar el test.
 
 ### Resultado esperado
 
-El cambio masivo de Price se aplica correctamente en Bulk Changes, el valor queda visible como `FOB Price` en Order Entry y los primeros 3 numeros normalizados de `Precio Unidad` en BETA GR coinciden con el valor asignado desde QU.
+El cambio masivo de Price se aplica correctamente en Bulk Changes, el valor queda visible como `FOB Price` en Order Entry y los primeros 3 numeros normalizados de `Precio Unidad` en BETA GR coinciden con el valor asignado desde QU. Si no hay ordenes visibles en GR con el filtro de fecha inicial, la prueba cambia `Fecha` a `UC` y repite la busqueda antes de validar el precio.
 
 ### Evidencias del caso
 
@@ -274,8 +291,26 @@ El cambio masivo de Price se aplica correctamente en Bulk Changes, el valor qued
 - `reports/screenshots/14-betagr-compras.png`
 - `reports/screenshots/15-betagr-asignacion-ordenes.png`
 - `reports/screenshots/16-betagr-asignacion-actualizada.png`
+- `reports/screenshots/16-betagr-asignacion-filtro-uc.png`, si aplica
 - `reports/screenshots/16-betagr-asignacion-refresh-{intento}.png`
 - `reports/screenshots/17-betagr-precio-actualizado.png`
+- `reports/screenshots/18-betagr-precio-evidencia-gr.png`
+
+### Documento Word
+
+El documento Word debe generarse automaticamente en:
+
+```text
+C:\Users\DianaSPS\Documents\Pruebas Bulk Changes\Bulk-changes-Price_AAAAMMDD.docx
+```
+
+Las imagenes incluidas en el Word deben conservarse completas. El generador debe normalizarlas usando escalado tipo `contain`, dejando margen blanco si la proporcion de la captura no coincide con el tamano uniforme.
+
+Tamano uniforme esperado:
+
+```text
+1710x971
+```
 
 ### Diagnosticos
 
@@ -286,6 +321,8 @@ El cambio masivo de Price se aplica correctamente en Bulk Changes, el valor qued
 - `reports/html/11-final-state.html`
 - `reports/html/12-order-entry.html`
 - `reports/html/12-order-entry-inputs.json`
+- `reports/html/16-betagr-total-items-filtro-fecha-original.json`, si aplica
+- `reports/html/16-betagr-total-items-filtro-uc.json`, si aplica
 - `reports/html/16-betagr-precio-unidad-candidatos-intento-{intento}.json`
 - `reports/html/16-betagr-precio-unidad-normalizados-intento-{intento}.json`
 
@@ -320,13 +357,17 @@ Resultado:
 
 - El test usa frames de WebFlowers; los elementos del menu se buscan en `iframe#left_page1` y los modulos en `iframe#center_page`.
 - La validacion de Order Entry no depende del indice del input; compara cualquier input visible con el precio esperado.
+- Si BETA GR no encuentra ordenes al buscar por prefijo con el filtro `Todos`, se cambia el filtro `Fecha` a `UC` y se vuelve a actualizar antes de evaluar `Precio Unidad`.
 - La validacion de BETA GR depende del encabezado `Precio Unidad`; si el texto del encabezado cambia, actualizar la expresion `/precio\s*unidad:?/i`.
 - La bitacora de decisiones de la sesion esta en `tests/specs-fuente/modulo-bulkchanges/bitacora-2026-08-13.md`.
 - La prueba no usa Page Class por decision del requerimiento.
 - La prueba no valida base de datos.
 - El cierre del navegador ocurre solo despues de que los primeros 3 numeros de `Precio Unidad` coinciden con los primeros 3 numeros del FOB Price asignado en QU desde Bulk Changes.
+- La evidencia final en GR debe mostrar el precio coincidente resaltado en verde exclusivamente dentro de la columna `Precio Unidad`.
+- El test no debe aceptar como evidencia visual valores coincidentes ubicados en otras columnas.
+- El documento Word debe incluir imagenes completas, sin recortes.
 
 ---
 
 *webflowers-qa-automation - tests/specs-fuente/modulo-bulkchanges/bulk-changes_Precio.md*
-*Actualizado: 2026-08-19*
+*Actualizado: 2026-09-01*

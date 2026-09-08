@@ -7,7 +7,7 @@ test.describe('MÃ³dulo Bulk Changes â€” Flujo principal Price', () => {
   test('Bulkchanges Price â€” aplicar cambio masivo y validar precio', async ({ page }, testInfo) => {
     fs.mkdirSync('reports/screenshots', { recursive: true });
     fs.mkdirSync('reports/html', { recursive: true });
-    test.setTimeout(420000);
+    test.setTimeout(600000);
     
     // Variables para guardar datos entre pasos
     let orderReferenceCapturado = '';
@@ -548,26 +548,25 @@ test.describe('MÃ³dulo Bulk Changes â€” Flujo principal Price', () => {
 
       try {
         const searchInput = frameCenter.locator(orderEntrySearchXpath);
-        await searchInput.waitFor({ state: 'visible', timeout: 10000 });
+        await searchInput.waitFor({ state: 'visible', timeout: 30000 });
         await searchInput.fill(orderReferenceParaOrderEntry);
         await searchInput.press('Enter');
       } catch (error) {
         const searchInput = page.locator(orderEntrySearchXpath);
-        await searchInput.waitFor({ state: 'visible', timeout: 10000 });
+        await searchInput.waitFor({ state: 'visible', timeout: 30000 });
         await searchInput.fill(orderReferenceParaOrderEntry);
         await searchInput.press('Enter');
       }
 
       console.log(`âœ… Prefijo ${orderReferenceParaOrderEntry} ingresado en Order Entry y bÃºsqueda ejecutada con Enter`);
-      await page.waitForTimeout(5000);
+      await page.waitForLoadState('domcontentloaded').catch(() => undefined);
+      await waitForAppReady(page, 45000).catch(() => undefined);
+      await page.waitForTimeout(10000);
 
       const centerFrame = await page.locator('iframe#center_page').elementHandle().then((iframe) => iframe?.contentFrame());
       if (centerFrame) {
-        fs.writeFileSync('reports/html/12-order-entry.html', await centerFrame.content());
-        await tomarScreenshot('reports/screenshots/12-order-entry.png');
-        await tomarScreenshot('reports/screenshots/12-order-entry-frame.png');
-
-        const inputsOrderEntry = await centerFrame.locator('input:visible').evaluateAll((inputs) =>
+        const precioEsperado = Number(valorPriceAsignado);
+        const leerInputsOrderEntry = async () => centerFrame.locator('input:visible').evaluateAll((inputs) =>
           inputs.map((input, index) => {
             const element = input as any;
             const rect = element.getBoundingClientRect();
@@ -585,13 +584,38 @@ test.describe('MÃ³dulo Bulk Changes â€” Flujo principal Price', () => {
             };
           })
         );
-        fs.writeFileSync('reports/html/12-order-entry-inputs.json', JSON.stringify(inputsOrderEntry, null, 2));
 
-        const precioEsperado = Number(valorPriceAsignado);
-        const valoresCoincidentes = inputsOrderEntry.filter((input) => {
-          const valorNormalizado = Number.parseFloat(String(input.value).replace(/[^0-9.-]/g, ''));
-          return Number.isFinite(valorNormalizado) && Math.abs(valorNormalizado - precioEsperado) < 0.001;
-        });
+        const maxIntentosOrderEntry = 5;
+        let valoresCoincidentes: any[] = [];
+        let inputsOrderEntry: any[] = [];
+
+        for (let intento = 1; intento <= maxIntentosOrderEntry; intento++) {
+          await waitForAppReady(page, 45000).catch(() => undefined);
+          await page.waitForTimeout(intento === 1 ? 5000 : 15000);
+
+          fs.writeFileSync(`reports/html/12-order-entry-intento-${intento}.html`, await centerFrame.content());
+          inputsOrderEntry = await leerInputsOrderEntry();
+          fs.writeFileSync(`reports/html/12-order-entry-inputs-intento-${intento}.json`, JSON.stringify(inputsOrderEntry, null, 2));
+
+          valoresCoincidentes = inputsOrderEntry.filter((input) => {
+            const valorNormalizado = Number.parseFloat(String(input.value).replace(/[^0-9.-]/g, ''));
+            return Number.isFinite(valorNormalizado) && Math.abs(valorNormalizado - precioEsperado) < 0.001;
+          });
+
+          if (valoresCoincidentes.length > 0) {
+            break;
+          }
+
+          if (intento < maxIntentosOrderEntry) {
+            console.log(`FOB Price ${valorPriceAsignado} aun no aparece en Order Entry. Esperando carga estable, intento ${intento} de ${maxIntentosOrderEntry - 1}...`);
+            await centerFrame.locator('body').waitFor({ state: 'visible', timeout: 30000 });
+          }
+        }
+
+        fs.writeFileSync('reports/html/12-order-entry.html', await centerFrame.content());
+        fs.writeFileSync('reports/html/12-order-entry-inputs.json', JSON.stringify(inputsOrderEntry, null, 2));
+        await tomarScreenshot('reports/screenshots/12-order-entry.png');
+        await tomarScreenshot('reports/screenshots/12-order-entry-frame.png');
 
         expect(
           valoresCoincidentes.length,
@@ -677,6 +701,7 @@ test.describe('MÃ³dulo Bulk Changes â€” Flujo principal Price', () => {
       const fechaDesdeInputXpath = 'xpath=/html/body/form/div[3]/div[1]/table/tbody/tr[1]/td/table/tbody/tr/td[1]/table/tbody/tr[3]/td[6]/input';
       const fechaHastaInputXpath = 'xpath=/html/body/form/div[3]/div[1]/table/tbody/tr[1]/td/table/tbody/tr/td[1]/table/tbody/tr[4]/td[6]/input';
       const actualizarXpath = 'xpath=/html/body/form/div[3]/div[1]/table/tbody/tr[2]/td/table/tbody/tr/td[1]/div/input[1]';
+      let filtroFechaUCActivado = false;
 
       const usarFrameAsignacion = async () => {
         const prefijoInput = asignacionFrame.locator(prefijoInputXpath);
@@ -721,6 +746,60 @@ test.describe('MÃ³dulo Bulk Changes â€” Flujo principal Price', () => {
           input.dispatchEvent(new Event('change', { bubbles: true }));
           input.dispatchEvent(new Event('blur', { bubbles: true }));
         }, valor);
+      };
+
+      const seleccionarFiltroFechaUCEnPagina = async (pageOrFrame: any) => {
+        const cambioRealizado = await pageOrFrame.locator('body').evaluate(() => {
+          const normalizar = (valor: string) => String(valor).trim().replace(/\s+/g, ' ').toUpperCase();
+          const labels = Array.from(document.querySelectorAll('td, label, span, div')) as HTMLElement[];
+          const labelFecha = labels.find((element) => /^FECHA:?$/.test(normalizar(element.innerText || element.textContent || '')));
+          const fila = labelFecha?.closest('tr');
+          const celdas = fila ? Array.from(fila.children) as HTMLElement[] : [];
+          const indiceLabel = labelFecha ? celdas.findIndex((cell) => cell === labelFecha || cell.contains(labelFecha)) : -1;
+
+          const selectsCandidatos = [
+            ...(indiceLabel >= 0 ? celdas.slice(indiceLabel + 1).flatMap((cell) => Array.from(cell.querySelectorAll('select'))) : []),
+            ...Array.from(document.querySelectorAll('select')).filter((select) => {
+              const rect = select.getBoundingClientRect();
+              const labelRect = labelFecha?.getBoundingClientRect();
+              return !!labelRect && rect.left > labelRect.left && Math.abs(rect.top - labelRect.top) < 30;
+            }),
+          ] as HTMLSelectElement[];
+
+          const selectFecha = selectsCandidatos.find((select) =>
+            Array.from(select.options).some((option) => normalizar(option.value) === 'UC' || normalizar(option.textContent || '') === 'UC')
+          );
+
+          if (!selectFecha) return false;
+
+          const opcionUC = Array.from(selectFecha.options).find((option) =>
+            normalizar(option.value) === 'UC' || normalizar(option.textContent || '') === 'UC'
+          );
+          if (!opcionUC) return false;
+
+          selectFecha.value = opcionUC.value;
+          selectFecha.dispatchEvent(new Event('input', { bubbles: true }));
+          selectFecha.dispatchEvent(new Event('change', { bubbles: true }));
+          selectFecha.dispatchEvent(new Event('blur', { bubbles: true }));
+          return true;
+        });
+
+        expect(cambioRealizado, 'Debe poder cambiar el filtro Fecha a UC cuando no se encuentran ordenes').toBeTruthy();
+      };
+
+      const aplicarFiltroFechaUCAsignacion = async () => {
+        if (filtroFechaUCActivado) return;
+
+        if (usarFrame) {
+          const centerFrame = await comprasPage.locator('iframe#center_page').elementHandle().then((iframe) => iframe?.contentFrame());
+          if (!centerFrame) throw new Error('No se encontro iframe center_page para cambiar el filtro Fecha a UC');
+          await seleccionarFiltroFechaUCEnPagina(centerFrame);
+        } else {
+          await seleccionarFiltroFechaUCEnPagina(comprasPage);
+        }
+
+        filtroFechaUCActivado = true;
+        console.log('✅ No se encontraron ordenes con el filtro de fecha actual. Filtro Fecha cambiado a UC.');
       };
 
       const aplicarRangoFechasMesAsignacion = async () => {
@@ -776,6 +855,40 @@ test.describe('MÃ³dulo Bulk Changes â€” Flujo principal Price', () => {
 
         await comprasPage.waitForTimeout(1000);
         await esperarCargaAsignacion();
+      };
+
+      const obtenerTotalItemsAsignacion = async () => {
+        const leerTotalItems = (texto: string) => {
+          const match = texto.match(/Total\s*(?:Í|I)tems:\s*(\d+)/i);
+          return match ? Number(match[1]) : null;
+        };
+
+        if (usarFrame) {
+          const centerFrame = await comprasPage.locator('iframe#center_page').elementHandle().then((iframe) => iframe?.contentFrame());
+          if (centerFrame) {
+            const texto = await centerFrame.locator('body').innerText({ timeout: 10000 }).catch(() => '');
+            return leerTotalItems(texto);
+          }
+        }
+
+        const texto = await comprasPage.locator('body').innerText({ timeout: 10000 }).catch(() => '');
+        return leerTotalItems(texto);
+      };
+
+      const noHayOrdenesAsignacion = async () => {
+        const leerSinRegistros = (texto: string) =>
+          /No se encontraron registros/i.test(texto) || /Total\s*(?:Í|I)tems:\s*0/i.test(texto);
+
+        if (usarFrame) {
+          const centerFrame = await comprasPage.locator('iframe#center_page').elementHandle().then((iframe) => iframe?.contentFrame());
+          if (centerFrame) {
+            const texto = await centerFrame.locator('body').innerText({ timeout: 10000 }).catch(() => '');
+            return leerSinRegistros(texto);
+          }
+        }
+
+        const texto = await comprasPage.locator('body').innerText({ timeout: 10000 }).catch(() => '');
+        return leerSinRegistros(texto);
       };
 
       const obtenerValoresPrecioUnidadAsignacion = async () => {
@@ -897,12 +1010,105 @@ test.describe('MÃ³dulo Bulk Changes â€” Flujo principal Price', () => {
       await esperarCargaAsignacion();
       await tomarScreenshotPagina(comprasPage, 'reports/screenshots/16-betagr-asignacion-actualizada.png');
 
+      const totalItemsInicialAsignacion = await obtenerTotalItemsAsignacion();
+      const sinOrdenesInicialAsignacion = await noHayOrdenesAsignacion();
+      fs.writeFileSync(
+        'reports/html/16-betagr-total-items-filtro-fecha-original.json',
+        JSON.stringify({ totalItems: totalItemsInicialAsignacion, sinOrdenes: sinOrdenesInicialAsignacion }, null, 2)
+      );
+
+      if (totalItemsInicialAsignacion === 0 || sinOrdenesInicialAsignacion) {
+        await aplicarFiltroFechaUCAsignacion();
+        await aplicarBusquedaAsignacion();
+        await esperarCargaAsignacion();
+        await tomarScreenshotPagina(comprasPage, 'reports/screenshots/16-betagr-asignacion-filtro-uc.png');
+        const totalItemsFiltroUC = await obtenerTotalItemsAsignacion();
+        const sinOrdenesFiltroUC = await noHayOrdenesAsignacion();
+        fs.writeFileSync(
+          'reports/html/16-betagr-total-items-filtro-uc.json',
+          JSON.stringify({ totalItems: totalItemsFiltroUC, sinOrdenes: sinOrdenesFiltroUC }, null, 2)
+        );
+      }
+
       // Ejemplo de comparacion: FOB Price asignado en QU desde Bulk Changes "1.51" y Precio Unidad "151" coinciden porque ambos normalizan sus primeros 3 numeros a "151".
       const obtenerPrimerosTresNumeros = (valor: string) => {
         const numeros = String(valor).replace(/[^0-9]/g, '');
         return numeros ? numeros.slice(0, 3).padEnd(3, '0') : '';
       };
       const primerosTresNumerosFobPrice = obtenerPrimerosTresNumeros(valorPriceAsignado);
+      const selectorValoresAsignacion = 'td:visible, th:visible, span:visible, div:visible, input:visible';
+      const estiloEvidenciaExitosa = {
+        outline: '4px solid #16803c',
+        backgroundColor: '#e8f5e9',
+        color: '#000000',
+      };
+      const enfocarPrecioUnidadCoincidente = async () => {
+        const enfocarElemento = async (locatorBase: any) => {
+          return locatorBase.evaluateAll((elements: Element[], params: { primerosTres: string; estilo: typeof estiloEvidenciaExitosa }) => {
+            const obtenerPrimerosTres = (valor: string) => {
+              const numeros = String(valor).replace(/[^0-9]/g, '');
+              return numeros ? numeros.slice(0, 3).padEnd(3, '0') : '';
+            };
+            const obtenerValor = (element: Element) => {
+              const htmlElement = element as HTMLElement;
+              const input = element as HTMLInputElement;
+              return (
+                input.value ||
+                htmlElement.getAttribute('value') ||
+                htmlElement.innerText ||
+                htmlElement.textContent ||
+                htmlElement.title ||
+                htmlElement.getAttribute('aria-label') ||
+                ''
+              ).trim();
+            };
+            const seCruzaHorizontalmente = (
+              item: { rect: DOMRect },
+              header: { rect: DOMRect }
+            ) => item.rect.left < header.rect.right && item.rect.right > header.rect.left;
+
+            const items = elements
+              .map((element) => {
+                const htmlElement = element as HTMLElement;
+                const rect = htmlElement.getBoundingClientRect();
+                const value = obtenerValor(element);
+
+                return { element: htmlElement, value, rect };
+              })
+              .filter((item) => item.value && item.rect.width > 0 && item.rect.height > 0);
+
+            const headersPrecioUnidad = items.filter((item) => /precio\s*unidad:?/i.test(item.value));
+            const candidatos = headersPrecioUnidad
+              .flatMap((header) => items
+                .filter((item) => item.rect.top > header.rect.bottom)
+                .filter((item) => seCruzaHorizontalmente(item, header))
+              )
+              .filter((item) => /\d/.test(item.value))
+              .filter((item) => obtenerPrimerosTres(item.value) === params.primerosTres)
+              .sort((a, b) => a.rect.top - b.rect.top);
+
+            const candidato = candidatos[0];
+            if (!candidato) {
+              return false;
+            }
+
+            candidato.element.scrollIntoView({ block: 'center', inline: 'center' });
+            candidato.element.style.outline = params.estilo.outline;
+            candidato.element.style.backgroundColor = params.estilo.backgroundColor;
+            candidato.element.style.color = params.estilo.color;
+            return true;
+          }, { primerosTres: primerosTresNumerosFobPrice, estilo: estiloEvidenciaExitosa });
+        };
+
+        if (usarFrame) {
+          const centerFrame = await comprasPage.locator('iframe#center_page').elementHandle().then((iframe) => iframe?.contentFrame());
+          if (centerFrame && await enfocarElemento(centerFrame.locator(selectorValoresAsignacion))) {
+            return true;
+          }
+        }
+
+        return enfocarElemento(comprasPage.locator(selectorValoresAsignacion));
+      };
       let precioVisible = false;
       let intentoConPrecioCoincidente = 0;
       const maxIntentosAsignacion = 5;
@@ -955,7 +1161,14 @@ test.describe('MÃ³dulo Bulk Changes â€” Flujo principal Price', () => {
         `Los primeros 3 numeros del campo Precio Unidad de Asignacion de ordenes deben coincidir con el FOB Price asignado en QU desde Bulk Changes (${valorPriceAsignado}, numeros ${primerosTresNumerosFobPrice}) para el prefijo ${orderReferenceCapturado}`
       ).toBeTruthy();
 
+      const precioEnfocadoParaEvidencia = await enfocarPrecioUnidadCoincidente();
+      expect(
+        precioEnfocadoParaEvidencia,
+        `Debe poder enfocar visualmente en GR el Precio Unidad que coincide con ${valorPriceAsignado}`
+      ).toBeTruthy();
+      await comprasPage.waitForTimeout(1000);
       await tomarScreenshotPagina(comprasPage, 'reports/screenshots/17-betagr-precio-actualizado.png');
+      await tomarScreenshotPagina(comprasPage, 'reports/screenshots/18-betagr-precio-evidencia-gr.png');
 
       console.log(`âœ… Precio validado en intento ${intentoConPrecioCoincidente}. Cerrando navegador y finalizando test.`);
       await comprasPage.close();

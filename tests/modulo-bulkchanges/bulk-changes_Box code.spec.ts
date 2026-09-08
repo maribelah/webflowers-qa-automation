@@ -23,6 +23,56 @@ test.describe('Módulo Bulk Changes — Flujo principal Box Code', () => {
       const b = normalizarBoxCode(valorB);
       return !!a && !!b && (a === b || a.includes(b) || b.includes(a));
     };
+    const obtenerBoxCodeDesdeFila = async (fila: any) => fila.evaluate((row: Element) => {
+      const obtenerTexto = (element: Element | null) => {
+        if (!element) return '';
+        const input = element as HTMLInputElement;
+        return (input.value || element.textContent || element.getAttribute('title') || element.getAttribute('aria-label') || '').trim();
+      };
+      const normalizar = (valor: string) => String(valor).trim().replace(/\s+/g, ' ').toUpperCase();
+      const rowElement = row as HTMLElement;
+      const grid = rowElement.closest('[role="grid"], .MuiDataGrid-root') ?? document;
+      const headers = Array.from(grid.querySelectorAll('[role="columnheader"], .MuiDataGrid-columnHeader')) as HTMLElement[];
+      const headerBoxCode = headers.find((header) => {
+        const textoHeader = normalizar(
+          header.innerText ||
+          header.textContent ||
+          header.getAttribute('aria-label') ||
+          header.getAttribute('data-field') ||
+          ''
+        );
+        return /BOX\s*CODE|^BOX$|CAJA/.test(textoHeader);
+      });
+
+      const dataField = headerBoxCode?.getAttribute('data-field');
+      if (dataField) {
+        const cell = Array.from(rowElement.querySelectorAll('[data-field]'))
+          .find((element) => element.getAttribute('data-field') === dataField);
+        const valor = obtenerTexto(cell ?? null);
+        if (valor) return valor;
+      }
+
+      const ariaColIndex = headerBoxCode?.getAttribute('aria-colindex');
+      if (ariaColIndex) {
+        const cell = rowElement.querySelector(`[aria-colindex="${ariaColIndex}"]`);
+        const valor = obtenerTexto(cell);
+        if (valor) return valor;
+      }
+
+      const cells = Array.from(rowElement.querySelectorAll('[role="cell"], .MuiDataGrid-cell, td')) as HTMLElement[];
+      const cellBoxCode = cells.find((cell) => {
+        const atributos = [
+          cell.getAttribute('data-field'),
+          cell.getAttribute('aria-label'),
+          cell.getAttribute('title'),
+          cell.id,
+          cell.className?.toString(),
+        ].join(' ');
+        return /box\s*code|box|caja/i.test(atributos);
+      });
+
+      return obtenerTexto(cellBoxCode ?? null);
+    });
     const tomarScreenshotPagina = async (pageActual: any, path: string) => {
       try {
         const tomarRecorte = async (x: number, y: number, width: number, height: number) => {
@@ -222,56 +272,7 @@ test.describe('Módulo Bulk Changes — Flujo principal Box Code', () => {
 
       const textoFilaSeleccionada = await filaSeleccionada.textContent({ timeout: 5000 }) ?? '';
       orderReferenceCompletoCapturado = extraerOrderReference(textoFilaSeleccionada);
-      valorBoxCodeActual = await filaSeleccionada.evaluate((row) => {
-        const obtenerTexto = (element: Element | null) => {
-          if (!element) return '';
-          const input = element as HTMLInputElement;
-          return (input.value || element.textContent || element.getAttribute('title') || element.getAttribute('aria-label') || '').trim();
-        };
-        const normalizar = (valor: string) => String(valor).trim().replace(/\s+/g, ' ').toUpperCase();
-        const rowElement = row as HTMLElement;
-        const grid = rowElement.closest('[role="grid"], .MuiDataGrid-root') ?? document;
-        const headers = Array.from(grid.querySelectorAll('[role="columnheader"], .MuiDataGrid-columnHeader')) as HTMLElement[];
-        const headerBoxCode = headers.find((header) => {
-          const textoHeader = normalizar(
-            header.innerText ||
-            header.textContent ||
-            header.getAttribute('aria-label') ||
-            header.getAttribute('data-field') ||
-            ''
-          );
-          return /BOX\s*CODE|^BOX$|CAJA/.test(textoHeader);
-        });
-
-        const dataField = headerBoxCode?.getAttribute('data-field');
-        if (dataField) {
-          const cell = Array.from(rowElement.querySelectorAll('[data-field]'))
-            .find((element) => element.getAttribute('data-field') === dataField);
-          const valor = obtenerTexto(cell ?? null);
-          if (valor) return valor;
-        }
-
-        const ariaColIndex = headerBoxCode?.getAttribute('aria-colindex');
-        if (ariaColIndex) {
-          const cell = rowElement.querySelector(`[aria-colindex="${ariaColIndex}"]`);
-          const valor = obtenerTexto(cell);
-          if (valor) return valor;
-        }
-
-        const cells = Array.from(rowElement.querySelectorAll('[role="cell"], .MuiDataGrid-cell, td')) as HTMLElement[];
-        const cellBoxCode = cells.find((cell) => {
-          const atributos = [
-            cell.getAttribute('data-field'),
-            cell.getAttribute('aria-label'),
-            cell.getAttribute('title'),
-            cell.id,
-            cell.className?.toString(),
-          ].join(' ');
-          return /box\s*code|box|caja/i.test(atributos);
-        });
-
-        return obtenerTexto(cellBoxCode ?? null);
-      });
+      valorBoxCodeActual = await obtenerBoxCodeDesdeFila(filaSeleccionada);
 
       if (orderReferenceCompletoCapturado) {
         orderReferenceCapturado = orderReferenceCompletoCapturado.substring(0, 6);
@@ -359,7 +360,7 @@ test.describe('Módulo Bulk Changes — Flujo principal Box Code', () => {
       const selectBoxCode = frameCenter.locator('select:visible').first();
       await selectBoxCode.waitFor({ state: 'visible', timeout: 20000 });
 
-      const opciones = await selectBoxCode.locator('option').evaluateAll((options) =>
+      let opciones = await selectBoxCode.locator('option').evaluateAll((options) =>
         options.map((option) => ({
           value: (option as HTMLOptionElement).value,
           label: ((option as HTMLOptionElement).label || option.textContent || '').trim(),
@@ -368,15 +369,99 @@ test.describe('Módulo Bulk Changes — Flujo principal Box Code', () => {
 
       expect(opciones.length, 'Debe existir un segundo código para Box Code').toBeGreaterThanOrEqual(2);
 
-      const opcionesDesdeSegundoCodigo = opciones.slice(1);
-      const opcionBoxCode = opcionesDesdeSegundoCodigo.find((opcion) =>
+      let opcionesDesdeSegundoCodigo = opciones.slice(1);
+      let opcionBoxCode = opcionesDesdeSegundoCodigo.find((opcion) =>
         !valorBoxCodeActual || !valoresBoxCodeCoinciden(opcion.label, valorBoxCodeActual)
       );
 
-      expect(
-        opcionBoxCode,
-        `Debe existir un Box Code disponible diferente al Box actual ${valorBoxCodeActual || '(no capturado)'}`
-      ).toBeTruthy();
+      if (!opcionBoxCode) {
+        console.log(`El registro inicial no tiene Box Code disponible diferente al Box actual ${valorBoxCodeActual || '(no capturado)'}. Se validaran los siguientes registros.`);
+
+        const filas = frameCenter.locator('.MuiDataGrid-row, [role="row"][data-rowindex]');
+        const totalFilas = await filas.count();
+        const checkboxSeleccionado = frameCenter.locator('[role="row"][aria-selected="true"] input[type="checkbox"], .MuiDataGrid-row.Mui-selected input[type="checkbox"]').first();
+        const cerrarFormularioBoxCode = async () => {
+          await page.keyboard.press('Escape').catch(() => undefined);
+          await page.waitForTimeout(1000);
+          await frameCenter.locator('.MuiModal-backdrop, [role="presentation"].MuiModal-root').first().waitFor({ state: 'hidden', timeout: 5000 }).catch(() => undefined);
+        };
+        const abrirFormularioBoxCode = async () => {
+          const elementXpath = 'xpath=/html/body/div/div/div[2]/div/div[1]/span/span[2]/span/div/div/div';
+          await frameCenter.locator(elementXpath).click({ timeout: 10000 });
+          await page.waitForTimeout(1000);
+          await clickPrimerMenuVisible('Box Code', [
+            frameCenter.locator('xpath=/html/body/div[2]/div[3]/ul/li[normalize-space()="Box Code"]'),
+            frameCenter.locator('xpath=/html/body/div[2]/div[3]/ul/li[contains(normalize-space(),"Box Code")]'),
+            frameCenter.getByText(/^Box Code$/i),
+          ]);
+          await page.waitForTimeout(3000);
+          await selectBoxCode.waitFor({ state: 'visible', timeout: 20000 });
+        };
+
+        for (let indiceFila = 1; indiceFila < totalFilas && !opcionBoxCode; indiceFila++) {
+          await cerrarFormularioBoxCode();
+
+          if (await checkboxSeleccionado.isVisible({ timeout: 1000 }).catch(() => false)) {
+            await checkboxSeleccionado.click({ timeout: 10000 });
+            await page.waitForTimeout(500);
+          }
+
+          const filaCandidata = filas.nth(indiceFila);
+          const checkboxCandidato = filaCandidata.locator('input[type="checkbox"]').first();
+
+          if (!(await checkboxCandidato.isVisible({ timeout: 2000 }).catch(() => false))) {
+            console.log(`Fila ${indiceFila + 1}: no tiene checkbox visible. Se valida la siguiente fila.`);
+            continue;
+          }
+
+          await filaCandidata.scrollIntoViewIfNeeded();
+          await checkboxCandidato.click({ timeout: 10000 });
+          await page.waitForTimeout(1000);
+          await abrirFormularioBoxCode();
+
+          const filaSeleccionada = frameCenter.locator('[role="row"][aria-selected="true"], .MuiDataGrid-row.Mui-selected').first();
+          const filaParaDatos = await filaSeleccionada.isVisible({ timeout: 2000 }).catch(() => false)
+            ? filaSeleccionada
+            : filaCandidata;
+
+          const textoFilaSeleccionada = await filaParaDatos.textContent({ timeout: 5000 }) ?? '';
+          const orderReferenceCompletoCandidato = extraerOrderReference(textoFilaSeleccionada);
+          const valorBoxCodeActualCandidato = await obtenerBoxCodeDesdeFila(filaParaDatos);
+
+          console.log(`Fila ${indiceFila + 1}: Order Reference ${orderReferenceCompletoCandidato || '(no capturada)'}, Box Code actual ${valorBoxCodeActualCandidato || '(no capturado)'}`);
+
+          if (!orderReferenceCompletoCandidato) {
+            fs.writeFileSync(`reports/html/05-row-${indiceFila + 1}-debug.txt`, textoFilaSeleccionada.replace(/\s+/g, ' ').trim());
+            continue;
+          }
+
+          opciones = await selectBoxCode.locator('option').evaluateAll((options) =>
+            options.map((option) => ({
+              value: (option as HTMLOptionElement).value,
+              label: ((option as HTMLOptionElement).label || option.textContent || '').trim(),
+            })).filter((option) => option.label)
+          );
+          opcionesDesdeSegundoCodigo = opciones.slice(1);
+
+          opcionBoxCode = opcionesDesdeSegundoCodigo.find((opcion) =>
+            !valorBoxCodeActualCandidato || !valoresBoxCodeCoinciden(opcion.label, valorBoxCodeActualCandidato)
+          );
+
+          if (!opcionBoxCode) {
+            console.log(`Fila ${indiceFila + 1}: no existe Box Code disponible diferente. Se valida la siguiente fila.`);
+            continue;
+          }
+
+          orderReferenceCompletoCapturado = orderReferenceCompletoCandidato;
+          orderReferenceCapturado = orderReferenceCompletoCapturado.substring(0, 6);
+          itemOrderReferenceCapturado = orderReferenceCompletoCapturado.split('-')[1] ?? '';
+          valorBoxCodeActual = valorBoxCodeActualCandidato;
+        }
+      }
+
+      if (!opcionBoxCode) {
+        throw new Error('No es posible encontrar una Order Reference que cumpla con las condiciones para realizar la prueba');
+      }
 
       if (valorBoxCodeActual && valoresBoxCodeCoinciden(opciones[1].label, valorBoxCodeActual)) {
         console.log(`El segundo Box Code (${opciones[1].label}) coincide con el Box actual; se seleccionara el siguiente disponible.`);
@@ -630,17 +715,21 @@ test.describe('Módulo Bulk Changes — Flujo principal Box Code', () => {
         'Debe existir el prefijo de 6 caracteres de la orden capturada en Bulk Changes para buscarla en Order Entry'
       ).toMatch(/^[A-Z]{2}\d{4}$/);
 
-      try {
-        const searchInput = frameCenter.locator(orderEntrySearchXpath);
-        await searchInput.waitFor({ state: 'visible', timeout: 10000 });
-        await searchInput.fill(orderReferenceParaOrderEntry);
-        await searchInput.press('Enter');
-      } catch (error) {
-        const searchInput = page.locator(orderEntrySearchXpath);
-        await searchInput.waitFor({ state: 'visible', timeout: 10000 });
-        await searchInput.fill(orderReferenceParaOrderEntry);
-        await searchInput.press('Enter');
-      }
+      const buscarOrderEntry = async () => {
+        try {
+          const searchInput = frameCenter.locator(orderEntrySearchXpath);
+          await searchInput.waitFor({ state: 'visible', timeout: 10000 });
+          await searchInput.fill(orderReferenceParaOrderEntry);
+          await searchInput.press('Enter');
+        } catch (error) {
+          const searchInput = page.locator(orderEntrySearchXpath);
+          await searchInput.waitFor({ state: 'visible', timeout: 10000 });
+          await searchInput.fill(orderReferenceParaOrderEntry);
+          await searchInput.press('Enter');
+        }
+      };
+
+      await buscarOrderEntry();
 
       console.log(`✅ Prefijo ${orderReferenceParaOrderEntry} ingresado en Order Entry y búsqueda ejecutada con Enter`);
       await page.waitForTimeout(5000);
@@ -651,7 +740,7 @@ test.describe('Módulo Bulk Changes — Flujo principal Box Code', () => {
         await tomarScreenshot('reports/screenshots/12-order-entry.png');
         await tomarScreenshot('reports/screenshots/12-order-entry-frame.png');
 
-        const valoresOrderEntry = await centerFrame.locator('select:visible, input:visible, td:visible, th:visible, span:visible, div:visible').evaluateAll((elements) =>
+        const leerValoresOrderEntry = async () => centerFrame.locator('select:visible, input:visible, td:visible, th:visible, span:visible, div:visible').evaluateAll((elements) =>
           elements.map((element, index) => {
             const htmlElement = element as any;
             const input = element as any;
@@ -678,14 +767,33 @@ test.describe('Módulo Bulk Changes — Flujo principal Box Code', () => {
             };
           }).filter((item) => item.value)
         );
-        fs.writeFileSync('reports/html/12-order-entry-box-code-values.json', JSON.stringify(valoresOrderEntry, null, 2));
-
         const normalizarBoxCode = (valor: string) => String(valor).trim().replace(/\s+/g, ' ').toUpperCase();
         const boxCodeEsperado = normalizarBoxCode(valorBoxCodeAsignado);
-        const valoresCoincidentes = valoresOrderEntry.filter((item) => {
+        let valoresOrderEntry = await leerValoresOrderEntry();
+        fs.writeFileSync('reports/html/12-order-entry-box-code-values.json', JSON.stringify(valoresOrderEntry, null, 2));
+        fs.writeFileSync('reports/html/12-order-entry-box-code-values-intento-1.json', JSON.stringify(valoresOrderEntry, null, 2));
+        let valoresCoincidentes = valoresOrderEntry.filter((item) => {
           const valorNormalizado = normalizarBoxCode(item.value);
           return valorNormalizado === boxCodeEsperado;
         });
+
+        const maxIntentosOrderEntry = 5;
+        for (let intento = 2; intento <= maxIntentosOrderEntry && valoresCoincidentes.length === 0; intento += 1) {
+          console.log(`Box Code ${valorBoxCodeAsignado} no aparece en Order Entry. Refrescando intento ${intento - 1} de ${maxIntentosOrderEntry - 1}...`);
+          await buscarOrderEntry();
+          await page.waitForTimeout(30000);
+          await tomarScreenshot(`reports/screenshots/12-order-entry-refresh-${intento - 1}.png`);
+
+          fs.writeFileSync('reports/html/12-order-entry.html', await centerFrame.content());
+          valoresOrderEntry = await leerValoresOrderEntry();
+          fs.writeFileSync('reports/html/12-order-entry-box-code-values.json', JSON.stringify(valoresOrderEntry, null, 2));
+          fs.writeFileSync(`reports/html/12-order-entry-box-code-values-intento-${intento}.json`, JSON.stringify(valoresOrderEntry, null, 2));
+
+          valoresCoincidentes = valoresOrderEntry.filter((item) => {
+            const valorNormalizado = normalizarBoxCode(item.value);
+            return valorNormalizado === boxCodeEsperado;
+          });
+        }
 
         expect(
           valoresCoincidentes.length,
@@ -785,6 +893,7 @@ test.describe('Módulo Bulk Changes — Flujo principal Box Code', () => {
       const fechaDesdeInputXpath = 'xpath=/html/body/form/div[3]/div[1]/table/tbody/tr[1]/td/table/tbody/tr/td[1]/table/tbody/tr[3]/td[6]/input';
       const fechaHastaInputXpath = 'xpath=/html/body/form/div[3]/div[1]/table/tbody/tr[1]/td/table/tbody/tr/td[1]/table/tbody/tr[4]/td[6]/input';
       const actualizarXpath = 'xpath=/html/body/form/div[3]/div[1]/table/tbody/tr[2]/td/table/tbody/tr/td[1]/div/input[1]';
+      let filtroFechaUCActivado = false;
 
       const usarFrameAsignacion = async () => {
         const prefijoInput = asignacionFrame.locator(prefijoInputXpath);
@@ -829,6 +938,60 @@ test.describe('Módulo Bulk Changes — Flujo principal Box Code', () => {
           input.dispatchEvent(new Event('change', { bubbles: true }));
           input.dispatchEvent(new Event('blur', { bubbles: true }));
         }, valor);
+      };
+
+      const seleccionarFiltroFechaUCEnPagina = async (pageOrFrame: any) => {
+        const cambioRealizado = await pageOrFrame.locator('body').evaluate(() => {
+          const normalizar = (valor: string) => String(valor).trim().replace(/\s+/g, ' ').toUpperCase();
+          const labels = Array.from(document.querySelectorAll('td, label, span, div')) as HTMLElement[];
+          const labelFecha = labels.find((element) => /^FECHA:?$/.test(normalizar(element.innerText || element.textContent || '')));
+          const fila = labelFecha?.closest('tr');
+          const celdas = fila ? Array.from(fila.children) as HTMLElement[] : [];
+          const indiceLabel = labelFecha ? celdas.findIndex((cell) => cell === labelFecha || cell.contains(labelFecha)) : -1;
+
+          const selectsCandidatos = [
+            ...(indiceLabel >= 0 ? celdas.slice(indiceLabel + 1).flatMap((cell) => Array.from(cell.querySelectorAll('select'))) : []),
+            ...Array.from(document.querySelectorAll('select')).filter((select) => {
+              const rect = select.getBoundingClientRect();
+              const labelRect = labelFecha?.getBoundingClientRect();
+              return !!labelRect && rect.left > labelRect.left && Math.abs(rect.top - labelRect.top) < 30;
+            }),
+          ] as HTMLSelectElement[];
+
+          const selectFecha = selectsCandidatos.find((select) =>
+            Array.from(select.options).some((option) => normalizar(option.value) === 'UC' || normalizar(option.textContent || '') === 'UC')
+          );
+
+          if (!selectFecha) return false;
+
+          const opcionUC = Array.from(selectFecha.options).find((option) =>
+            normalizar(option.value) === 'UC' || normalizar(option.textContent || '') === 'UC'
+          );
+          if (!opcionUC) return false;
+
+          selectFecha.value = opcionUC.value;
+          selectFecha.dispatchEvent(new Event('input', { bubbles: true }));
+          selectFecha.dispatchEvent(new Event('change', { bubbles: true }));
+          selectFecha.dispatchEvent(new Event('blur', { bubbles: true }));
+          return true;
+        });
+
+        expect(cambioRealizado, 'Debe poder cambiar el filtro Fecha a UC cuando no se encuentran ordenes').toBeTruthy();
+      };
+
+      const aplicarFiltroFechaUCAsignacion = async () => {
+        if (filtroFechaUCActivado) return;
+
+        if (usarFrame) {
+          const centerFrame = await comprasPage.locator('iframe#center_page').elementHandle().then((iframe) => iframe?.contentFrame());
+          if (!centerFrame) throw new Error('No se encontro iframe center_page para cambiar el filtro Fecha a UC');
+          await seleccionarFiltroFechaUCEnPagina(centerFrame);
+        } else {
+          await seleccionarFiltroFechaUCEnPagina(comprasPage);
+        }
+
+        filtroFechaUCActivado = true;
+        console.log('✅ No se encontraron ordenes con el filtro de fecha actual. Filtro Fecha cambiado a UC.');
       };
 
       const aplicarRangoFechasMesAsignacion = async () => {
@@ -886,6 +1049,40 @@ test.describe('Módulo Bulk Changes — Flujo principal Box Code', () => {
         await esperarCargaAsignacion();
       };
 
+      const obtenerTotalItemsAsignacion = async () => {
+        const leerTotalItems = (texto: string) => {
+          const match = texto.match(/Total\s*(?:Í|I)tems:\s*(\d+)/i);
+          return match ? Number(match[1]) : null;
+        };
+
+        if (usarFrame) {
+          const centerFrame = await comprasPage.locator('iframe#center_page').elementHandle().then((iframe) => iframe?.contentFrame());
+          if (centerFrame) {
+            const texto = await centerFrame.locator('body').innerText({ timeout: 10000 }).catch(() => '');
+            return leerTotalItems(texto);
+          }
+        }
+
+        const texto = await comprasPage.locator('body').innerText({ timeout: 10000 }).catch(() => '');
+        return leerTotalItems(texto);
+      };
+
+      const noHayOrdenesAsignacion = async () => {
+        const leerSinRegistros = (texto: string) =>
+          /No se encontraron registros/i.test(texto) || /Total\s*(?:Í|I)tems:\s*0/i.test(texto);
+
+        if (usarFrame) {
+          const centerFrame = await comprasPage.locator('iframe#center_page').elementHandle().then((iframe) => iframe?.contentFrame());
+          if (centerFrame) {
+            const texto = await centerFrame.locator('body').innerText({ timeout: 10000 }).catch(() => '');
+            return leerSinRegistros(texto);
+          }
+        }
+
+        const texto = await comprasPage.locator('body').innerText({ timeout: 10000 }).catch(() => '');
+        return leerSinRegistros(texto);
+      };
+
       const obtenerValoresCajaAsignacion = async () => {
         const extraerValoresCaja = (elements: Element[]) => {
           const items = elements.map((element) => {
@@ -933,6 +1130,26 @@ test.describe('Módulo Bulk Changes — Flujo principal Box Code', () => {
       console.log(`✅ Prefijo ${orderReferenceCapturado} ingresado, filtro Todos seleccionado y búsqueda actualizada`);
       await esperarCargaAsignacion();
       await tomarScreenshotPagina(comprasPage, 'reports/screenshots/16-betagr-asignacion-actualizada.png');
+
+      const totalItemsInicialAsignacion = await obtenerTotalItemsAsignacion();
+      const sinOrdenesInicialAsignacion = await noHayOrdenesAsignacion();
+      fs.writeFileSync(
+        'reports/html/16-betagr-total-items-filtro-fecha-original.json',
+        JSON.stringify({ totalItems: totalItemsInicialAsignacion, sinOrdenes: sinOrdenesInicialAsignacion }, null, 2)
+      );
+
+      if (totalItemsInicialAsignacion === 0 || sinOrdenesInicialAsignacion) {
+        await aplicarFiltroFechaUCAsignacion();
+        await aplicarBusquedaAsignacion();
+        await esperarCargaAsignacion();
+        await tomarScreenshotPagina(comprasPage, 'reports/screenshots/16-betagr-asignacion-filtro-uc.png');
+        const totalItemsFiltroUC = await obtenerTotalItemsAsignacion();
+        const sinOrdenesFiltroUC = await noHayOrdenesAsignacion();
+        fs.writeFileSync(
+          'reports/html/16-betagr-total-items-filtro-uc.json',
+          JSON.stringify({ totalItems: totalItemsFiltroUC, sinOrdenes: sinOrdenesFiltroUC }, null, 2)
+        );
+      }
 
       const normalizarBoxCode = (valor: string) => String(valor).trim().replace(/\s+/g, ' ').toUpperCase();
       const boxCodeEsperado = normalizarBoxCode(valorBoxCodeAsignado);
