@@ -53,3 +53,18 @@ playwright/.cache/
 # Permitir archivos específicos de VS Code
 !.vscode/extensions.json
 !.vscode/launch.json
+
+# Playwright temporary traces
+.tmp-trace-productflowers/
+.tmp-trace-productflowers-current/
+
+# Codex local state / sessions
+.codex/
+
+# Capturas temporales locales
+dashboard.png
+prod-reporting-2.png
+production-reporting.png
+
+# Archivo local de práctica Markdown
+tests/specs-fuente/modulo-bulkchanges/practica-markdown.md
