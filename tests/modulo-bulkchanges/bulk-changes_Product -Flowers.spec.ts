@@ -2168,6 +2168,174 @@ test.describe('Módulo Bulk Changes — Flujo principal Product - Flowers', () =
         `El campo Codigo Flor de Asignacion de ordenes debe coincidir con el Code ${valorCodeProductsDefinition} guardado desde Products Definition para el prefijo ${orderReferenceCapturado}`
       ).toBeTruthy();
 
+      const resaltarCodigoFlorValidado = async () => {
+        const resaltarCodigo = (_body: Element, datos: { orderReference: string; itemReference: string; codeEsperado: string }) => {
+          const normalizar = (valor: string) => String(valor || '')
+            .trim()
+            .replace(/\s+/g, ' ')
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .toUpperCase();
+          const obtenerValor = (element: Element | null | undefined) => {
+            if (!element) return '';
+            const htmlElement = element as HTMLElement;
+            const input = element as HTMLInputElement;
+            return input.value || htmlElement.textContent || htmlElement.getAttribute('title') || htmlElement.getAttribute('aria-label') || '';
+          };
+          const esVisible = (element: Element) => {
+            const rect = (element as HTMLElement).getBoundingClientRect();
+            return rect.width > 0 && rect.height > 0;
+          };
+
+          const orderReferenceNormalizado = normalizar(datos.orderReference);
+          const itemReferenceNormalizado = normalizar(datos.itemReference);
+          const codeEsperadoNormalizado = normalizar(datos.codeEsperado);
+          const filas = Array.from(document.querySelectorAll('tr'))
+            .filter(esVisible)
+            .map((fila) => {
+              const filaHtml = fila as HTMLElement;
+              const celdasDirectas = Array.from(fila.children)
+                .filter((child) => child.matches('td, th, [colid], .ag-cell') && esVisible(child))
+                .map((child) => ({
+                  element: child as HTMLElement,
+                  value: normalizar(obtenerValor(child)),
+                  colid: child.getAttribute('colid') || '',
+                }));
+              return {
+                fila: filaHtml,
+                texto: normalizar(obtenerValor(fila)),
+                celdasDirectas,
+                celdas: Array.from(fila.querySelectorAll('td, th')).filter(esVisible) as HTMLElement[],
+              };
+            });
+
+          const esFilaPrincipalObjetivo = (fila: typeof filas[number]) => {
+            const ordenCoincide = fila.celdasDirectas.some((celda) =>
+              celda.value === orderReferenceNormalizado
+              || (celda.colid.toUpperCase().includes('ORDER') && celda.value.includes(orderReferenceNormalizado))
+            );
+            const itemCoincide = fila.celdasDirectas.some((celda) =>
+              celda.value === itemReferenceNormalizado
+              || (celda.colid.toUpperCase() === 'ITEM' && celda.value === itemReferenceNormalizado)
+            );
+            return ordenCoincide && itemCoincide;
+          };
+          const esOtraFilaPrincipal = (fila: typeof filas[number]) =>
+            fila.celdasDirectas.some((celda) => celda.value === orderReferenceNormalizado)
+            && fila.celdasDirectas.some((celda) => /^\d{3}$/.test(celda.value));
+          const indiceFilaObjetivo = filas.findIndex(esFilaPrincipalObjetivo);
+          if (indiceFilaObjetivo < 0) return { highlighted: false, reason: 'No se encontro la fila principal objetivo' };
+
+          const resaltarEnFilasReceta = (filasTabla: HTMLElement[]) => {
+            const indiceHeader = filasTabla.findIndex((fila) =>
+              Array.from(fila.children)
+                .filter((child) => child.matches('td, th') && esVisible(child))
+                .some((celda) => {
+                  const valor = normalizar(obtenerValor(celda));
+                  return valor.includes('CODIGO') && valor.includes('FLOR');
+                })
+            );
+
+            if (indiceHeader < 0) return null;
+
+            const headerCells = Array.from(filasTabla[indiceHeader].children)
+              .filter((child) => child.matches('td, th') && esVisible(child)) as HTMLElement[];
+            const indiceCodigoFlor = headerCells.findIndex((celda) => {
+              const valor = normalizar(obtenerValor(celda));
+              return valor.includes('CODIGO') && valor.includes('FLOR');
+            });
+
+            if (indiceCodigoFlor < 0) return null;
+
+            for (const fila of filasTabla.slice(indiceHeader + 1)) {
+              const textoFila = normalizar(obtenerValor(fila));
+              if (/COMENTARIOS|ASIGNACION|ASIGNACI/.test(textoFila)) {
+                break;
+              }
+
+              const celdas = Array.from(fila.children)
+                .filter((child) => child.matches('td, th') && esVisible(child)) as HTMLElement[];
+              const celdaCodigoFlor = celdas[indiceCodigoFlor];
+              if (!celdaCodigoFlor) {
+                continue;
+              }
+
+              const valorCodigoFlor = normalizar(obtenerValor(celdaCodigoFlor));
+              if (valorCodigoFlor !== codeEsperadoNormalizado) {
+                continue;
+              }
+
+              fila.scrollIntoView({ block: 'center', inline: 'center' });
+              fila.style.outline = '4px solid #0057ff';
+              fila.style.outlineOffset = '-3px';
+              fila.style.position = fila.style.position || 'relative';
+              for (const [indice, celda] of celdas.entries()) {
+                celda.style.borderTop = '4px solid #0057ff';
+                celda.style.borderBottom = '4px solid #0057ff';
+                celda.style.boxShadow = 'inset 0 0 0 1px #0057ff';
+                if (indice === 0) celda.style.borderLeft = '4px solid #0057ff';
+                if (indice === celdas.length - 1) celda.style.borderRight = '4px solid #0057ff';
+              }
+
+              return {
+                highlighted: true,
+                code: datos.codeEsperado,
+                rowValues: celdas.map((celda) => obtenerValor(celda).trim()),
+              };
+            }
+
+            return null;
+          };
+
+          const filasDetalleObjetivo: typeof filas = [];
+          for (const fila of filas.slice(indiceFilaObjetivo + 1)) {
+            if (esOtraFilaPrincipal(fila)) break;
+            filasDetalleObjetivo.push(fila);
+            if (/ASIGNACION|ASIGNACI/.test(fila.texto)) break;
+          }
+
+          let detalleObjetivo = filas[indiceFilaObjetivo].fila.nextElementSibling as HTMLElement | null;
+          while (detalleObjetivo && !detalleObjetivo.matches('.detailTR')) {
+            if (detalleObjetivo.matches('tr')) {
+              const filaHermana = filas.find((fila) => fila.fila === detalleObjetivo);
+              if (filaHermana && esOtraFilaPrincipal(filaHermana)) break;
+            }
+            detalleObjetivo = detalleObjetivo.nextElementSibling as HTMLElement | null;
+          }
+
+          if (detalleObjetivo && esVisible(detalleObjetivo)) {
+            for (const tabla of Array.from(detalleObjetivo.querySelectorAll('table'))) {
+              const resultado = resaltarEnFilasReceta(Array.from(tabla.querySelectorAll('tr')).filter(esVisible) as HTMLElement[]);
+              if (resultado) return resultado;
+            }
+          }
+
+          const resultadoPorFilasVisibles = resaltarEnFilasReceta(filasDetalleObjetivo.map((fila) => fila.fila));
+          if (resultadoPorFilasVisibles) return resultadoPorFilasVisibles;
+
+          return { highlighted: false, reason: `No se encontro fila de Receta del Producto con Codigo Flor ${datos.codeEsperado}` };
+        };
+
+        if (usarFrame) {
+          const centerFrame = await obtenerFrameAsignacion();
+          if (!centerFrame) return { highlighted: false, reason: 'No se encontro iframe center_page en GR' };
+          return centerFrame.locator('body').evaluate(resaltarCodigo, {
+            orderReference: orderReferenceCapturado,
+            itemReference: itemOrderReferenceCapturado,
+            codeEsperado: valorCodeProductsDefinition,
+          });
+        }
+
+        return comprasPage.locator('body').evaluate(resaltarCodigo, {
+          orderReference: orderReferenceCapturado,
+          itemReference: itemOrderReferenceCapturado,
+          codeEsperado: valorCodeProductsDefinition,
+        });
+      };
+
+      await comprasPage.waitForTimeout(1000);
+      const resultadoResaltado = await resaltarCodigoFlorValidado();
+      console.log(`Resultado resaltado Codigo Flor en GR: ${JSON.stringify(resultadoResaltado)}`);
       await comprasPage.waitForTimeout(1000);
       await tomarScreenshotPagina(comprasPage, 'reports/screenshots/17-betagr-product-flowers-confirmado.png');
 
