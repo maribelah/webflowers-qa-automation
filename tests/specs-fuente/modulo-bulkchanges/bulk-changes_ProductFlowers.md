@@ -60,7 +60,7 @@ Validar que el cambio masivo de `Product - Flowers` realizado en QU desde `Sales
 40. Comparar el `Code` guardado desde `Products Definition` contra `Codigo Flor`.
 41. Si `Codigo Flor` no coincide o el detalle no queda desplegado, repetir el proceso completo hasta 5 intentos.
 42. La coincidencia en GR debe salir del bloque de detalle asociado a la fila principal del item capturado; no se permite usar una busqueda global en toda la pantalla.
-43. Tan pronto se valide la coincidencia, guardar la evidencia visual del detalle expandido en GR usando `17-betagr-product-flowers-confirmado.png` y dejar que Playwright cierre el navegador al finalizar.
+43. Tan pronto se valide la coincidencia, guardar la evidencia visual del detalle expandido en GR usando `17-betagr-product-flowers-confirmado.png`, con resaltado azul sobre la fila completa de `Receta del Producto` donde `Codigo Flor` coincide con el `Code` guardado, y dejar que Playwright cierre el navegador al finalizar.
 44. Generar el documento Word con las capturas recientes de la ejecucion.
 
 ## Reglas de validacion
@@ -84,6 +84,7 @@ Validar que el cambio masivo de `Product - Flowers` realizado en QU desde `Sales
 - En BETA GR, cada intento debe consultar la orden, ubicar la linea por prefijo de orden e item capturados, abrir el detalle con el boton `+` y luego comparar `Codigo Flor`.
 - En BETA GR, despues de consultar por prefijo con el filtro `Todos`, la prueba debe cambiar siempre el filtro `Fecha` a `UC`, ejecutar `Actualizar` nuevamente y solo despues continuar con la expansion de la fila.
 - En BETA GR, la lectura de `Codigo Flor` debe hacerse dentro del bloque expandido de la fila principal objetivo, identificando el encabezado `Codigo Flor`/`Codigo` con tilde o sin tilde y tomando los valores alineados bajo esa columna hasta `Comentarios`.
+- La evidencia final de BETA GR debe resaltar la fila completa de la tabla `Receta del Producto` donde la columna `Codigo Flor` coincide exactamente con el `Code` capturado; no basta con resaltar una celda o una coincidencia de texto fuera de esa tabla.
 - En BETA GR, el item debe compararse contra celdas directas de la fila principal. Textos dentro de detalles expandidos, como `Q002`, no deben tomarse como coincidencia del item `002`.
 - En BETA GR, las celdas pueden exponer el valor real en el atributo `title`; si `textContent` esta vacio o solo tiene espacios, la prueba debe leer `title` para comparar orden, item y columnas de receta.
 - En BETA GR, si ya hay otra fila expandida, la prueba no debe usar esa receta como valida a menos que pertenezca a la fila principal del item capturado.
