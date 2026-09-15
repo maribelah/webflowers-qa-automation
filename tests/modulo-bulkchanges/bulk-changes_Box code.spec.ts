@@ -7,7 +7,7 @@ test.describe('Módulo Bulk Changes — Flujo principal Box Code', () => {
   test('Bulkchanges Box Code — aplicar cambio masivo y validar caja', async ({ page }, testInfo) => {
     fs.mkdirSync('reports/screenshots', { recursive: true });
     fs.mkdirSync('reports/html', { recursive: true });
-    test.setTimeout(420000);
+    test.setTimeout(600000);
     
     // Variables para guardar datos entre pasos
     let orderReferenceCapturado = '';
@@ -779,9 +779,9 @@ test.describe('Módulo Bulk Changes — Flujo principal Box Code', () => {
 
         const maxIntentosOrderEntry = 5;
         for (let intento = 2; intento <= maxIntentosOrderEntry && valoresCoincidentes.length === 0; intento += 1) {
-          console.log(`Box Code ${valorBoxCodeAsignado} no aparece en Order Entry. Refrescando intento ${intento - 1} de ${maxIntentosOrderEntry - 1}...`);
+          console.log(`Box Code ${valorBoxCodeAsignado} no aparece en Order Entry. Refrescando busqueda y esperando 1 minuto antes del intento ${intento - 1} de ${maxIntentosOrderEntry - 1}...`);
           await buscarOrderEntry();
-          await page.waitForTimeout(30000);
+          await page.waitForTimeout(60000);
           await tomarScreenshot(`reports/screenshots/12-order-entry-refresh-${intento - 1}.png`);
 
           fs.writeFileSync('reports/html/12-order-entry.html', await centerFrame.content());
@@ -811,10 +811,13 @@ test.describe('Módulo Bulk Changes — Flujo principal Box Code', () => {
     await test.step('Abrir BETA GR y navegar a Compras -> Asignacion de ordenes', async () => {
       const t0 = Date.now();
       const comprasPage = await page.context().newPage();
+      await comprasPage.setViewportSize({ width: 1920, height: 1200 });
+      await comprasPage.bringToFront();
 
       const navegarBetaGr = async () => {
         for (let intento = 1; intento <= 3; intento++) {
           await comprasPage.goto('https://betagr.ghtcorptest.com/', { waitUntil: 'domcontentloaded' });
+          await comprasPage.bringToFront();
           await comprasPage.waitForTimeout(3000);
 
           const pagina404 = await comprasPage.getByText(/404 Web Site not found/i).isVisible({ timeout: 2000 }).catch(() => false);
@@ -838,6 +841,7 @@ test.describe('Módulo Bulk Changes — Flujo principal Box Code', () => {
         await waitForAppReady(comprasPage, 30000);
         await clickResilient(comprasPage.locator('#btnSigIn'));
         await waitForAppReady(comprasPage, 30000);
+        await comprasPage.bringToFront();
         console.log('✅ Login realizado en BETA GR');
       }
 
@@ -883,6 +887,7 @@ test.describe('Módulo Bulk Changes — Flujo principal Box Code', () => {
         frameMenu.locator(asignacionOrdenesXpath),
       ]);
       await comprasPage.waitForTimeout(8000);
+      await comprasPage.bringToFront();
       console.log('✅ Click en Asignación de ordenes');
       await tomarScreenshotPagina(comprasPage, 'reports/screenshots/15-betagr-asignacion-ordenes.png');
 
@@ -976,7 +981,7 @@ test.describe('Módulo Bulk Changes — Flujo principal Box Code', () => {
           return true;
         });
 
-        expect(cambioRealizado, 'Debe poder cambiar el filtro Fecha a UC cuando no se encuentran ordenes').toBeTruthy();
+        expect(cambioRealizado, 'Debe poder cambiar el filtro Fecha a UC antes de validar Caja').toBeTruthy();
       };
 
       const aplicarFiltroFechaUCAsignacion = async () => {
@@ -1033,6 +1038,7 @@ test.describe('Módulo Bulk Changes — Flujo principal Box Code', () => {
         if (usarFrame) {
           await asignacionFrame.locator(prefijoInputXpath).fill(orderReferenceCapturado);
           await aplicarRangoFechasMesAsignacion();
+          await aplicarFiltroFechaUCAsignacion();
           await marcarFiltroTodos(asignacionFrame.locator(filtroTodosXpath));
           await esperarCargaAsignacion();
           await asignacionFrame.locator(actualizarXpath).click({ timeout: 10000 });
@@ -1040,6 +1046,7 @@ test.describe('Módulo Bulk Changes — Flujo principal Box Code', () => {
           await comprasPage.locator(prefijoInputXpath).waitFor({ state: 'visible', timeout: 20000 });
           await comprasPage.locator(prefijoInputXpath).fill(orderReferenceCapturado);
           await aplicarRangoFechasMesAsignacion();
+          await aplicarFiltroFechaUCAsignacion();
           await marcarFiltroTodos(comprasPage.locator(filtroTodosXpath));
           await esperarCargaAsignacion();
           await comprasPage.locator(actualizarXpath).click({ timeout: 10000 });
@@ -1047,6 +1054,58 @@ test.describe('Módulo Bulk Changes — Flujo principal Box Code', () => {
 
         await comprasPage.waitForTimeout(1000);
         await esperarCargaAsignacion();
+      };
+
+      const ampliarItemsPorPaginaAsignacion = async () => {
+        const ampliarItemsPorPagina = () => {
+          const normalizar = (valor: string) => String(valor || '').trim().replace(/\s+/g, ' ');
+          const normalizarSinAcentos = (valor: string) => normalizar(valor)
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .toUpperCase();
+          const labels = Array.from(document.querySelectorAll('td, th, label, span, div')) as HTMLElement[];
+          const labelItems = labels
+            .map((element) => ({ element, rect: element.getBoundingClientRect(), text: normalizarSinAcentos(element.innerText || element.textContent || '') }))
+            .filter((item) => item.rect.width > 0 && item.rect.height > 0)
+            .find((item) => /^ITEMS\/PAGINA:?$/.test(item.text));
+          if (!labelItems) return false;
+
+          const inputs = Array.from(document.querySelectorAll('input')) as HTMLInputElement[];
+          const inputItems = inputs
+            .map((input) => ({ input, rect: input.getBoundingClientRect() }))
+            .filter((item) => item.rect.width > 0 && item.rect.height > 0)
+            .filter((item) => item.rect.left > labelItems.rect.right && Math.abs(item.rect.top - labelItems.rect.top) < 24)
+            .sort((a, b) => a.rect.left - b.rect.left)[0]?.input;
+          if (!inputItems) return false;
+
+          inputItems.value = '100';
+          inputItems.dispatchEvent(new Event('input', { bubbles: true }));
+          inputItems.dispatchEvent(new Event('change', { bubbles: true }));
+          inputItems.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true }));
+          inputItems.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', bubbles: true }));
+          inputItems.dispatchEvent(new Event('blur', { bubbles: true }));
+          return true;
+        };
+
+        const cambioRealizado = usarFrame
+          ? await comprasPage.locator('iframe#center_page').elementHandle()
+            .then((iframe) => iframe?.contentFrame())
+            .then((centerFrame) => centerFrame?.locator('body').evaluate(ampliarItemsPorPagina).catch(() => false) ?? false)
+          : await comprasPage.locator('body').evaluate(ampliarItemsPorPagina).catch(() => false);
+
+        if (!cambioRealizado) {
+          console.log('No fue posible ampliar Items/Pagina; se continuara con paginacion.');
+          return;
+        }
+
+        if (usarFrame) {
+          await asignacionFrame.locator(actualizarXpath).click({ timeout: 10000 });
+        } else {
+          await comprasPage.locator(actualizarXpath).click({ timeout: 10000 });
+        }
+        await comprasPage.waitForTimeout(5000);
+        await esperarCargaAsignacion();
+        console.log('Items/Pagina ampliado a 100 antes de validar Caja en GR.');
       };
 
       const obtenerTotalItemsAsignacion = async () => {
@@ -1127,45 +1186,403 @@ test.describe('Módulo Bulk Changes — Flujo principal Box Code', () => {
 
       await aplicarBusquedaAsignacion();
 
-      console.log(`✅ Prefijo ${orderReferenceCapturado} ingresado, filtro Todos seleccionado y búsqueda actualizada`);
+      console.log(`✅ Prefijo ${orderReferenceCapturado} ingresado, filtro Fecha UC y filtro Todos seleccionados, búsqueda actualizada`);
       await esperarCargaAsignacion();
       await tomarScreenshotPagina(comprasPage, 'reports/screenshots/16-betagr-asignacion-actualizada.png');
-
-      const totalItemsInicialAsignacion = await obtenerTotalItemsAsignacion();
-      const sinOrdenesInicialAsignacion = await noHayOrdenesAsignacion();
-      fs.writeFileSync(
-        'reports/html/16-betagr-total-items-filtro-fecha-original.json',
-        JSON.stringify({ totalItems: totalItemsInicialAsignacion, sinOrdenes: sinOrdenesInicialAsignacion }, null, 2)
-      );
-
-      if (totalItemsInicialAsignacion === 0 || sinOrdenesInicialAsignacion) {
-        await aplicarFiltroFechaUCAsignacion();
-        await aplicarBusquedaAsignacion();
-        await esperarCargaAsignacion();
-        await tomarScreenshotPagina(comprasPage, 'reports/screenshots/16-betagr-asignacion-filtro-uc.png');
-        const totalItemsFiltroUC = await obtenerTotalItemsAsignacion();
-        const sinOrdenesFiltroUC = await noHayOrdenesAsignacion();
-        fs.writeFileSync(
-          'reports/html/16-betagr-total-items-filtro-uc.json',
-          JSON.stringify({ totalItems: totalItemsFiltroUC, sinOrdenes: sinOrdenesFiltroUC }, null, 2)
-        );
-      }
+      await tomarScreenshotPagina(comprasPage, 'reports/screenshots/16-betagr-asignacion-filtro-uc.png');
 
       const normalizarBoxCode = (valor: string) => String(valor).trim().replace(/\s+/g, ' ').toUpperCase();
       const boxCodeEsperado = normalizarBoxCode(valorBoxCodeAsignado);
+
+      type ResultadoCajaAsignacion = {
+        encontrado: boolean;
+        pagina: string;
+        orden: string;
+        item: string;
+        caja: string;
+        filasVisibles: Array<{ orden: string; item: string; caja: string }>;
+        paginasDisponibles: string[];
+      };
+
+      const obtenerFrameAsignacion = async () =>
+        comprasPage.locator('iframe#center_page').elementHandle().then((iframe) => iframe?.contentFrame());
+
+      const selectorElementosAsignacion = 'td:visible, th:visible, span:visible, div:visible, input:visible, select:visible';
+
+      const obtenerPaginasDisponiblesAsignacion = async () => {
+        const leerPaginas = () => {
+          const normalizar = (valor: string) => String(valor || '').trim().replace(/\s+/g, ' ');
+          const normalizarSinAcentos = (valor: string) => normalizar(valor)
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .toUpperCase();
+          const labelsPagina = Array.from(document.querySelectorAll('td, th, label, span, div')) as HTMLElement[];
+          const labelPagina = labelsPagina
+            .map((element) => ({ element, rect: element.getBoundingClientRect(), text: normalizarSinAcentos(element.innerText || element.textContent || '') }))
+            .filter((item) => item.rect.width > 0 && item.rect.height > 0)
+            .find((item) => /^PAGINA:?$/.test(item.text));
+          const selects = Array.from(document.querySelectorAll('select')) as HTMLSelectElement[];
+          const selectPagina = labelPagina
+            ? selects
+              .map((select) => ({ select, rect: select.getBoundingClientRect() }))
+              .filter((item) => item.rect.width > 0 && item.rect.height > 0)
+              .filter((item) => item.rect.left > labelPagina.rect.right && Math.abs(item.rect.top - labelPagina.rect.top) < 24)
+              .sort((a, b) => a.rect.left - b.rect.left)[0]?.select
+            : undefined;
+          return selectPagina
+            ? Array.from(selectPagina.options).map((option) => normalizar(option.textContent || option.value || '')).filter(Boolean)
+            : ['1'];
+        };
+
+        if (usarFrame) {
+          const centerFrame = await obtenerFrameAsignacion();
+          if (!centerFrame) return ['1'];
+          return centerFrame.locator('body').evaluate(leerPaginas);
+        }
+
+        return comprasPage.locator('body').evaluate(leerPaginas);
+      };
+
+      const seleccionarPaginaAsignacion = async (pagina: string) => {
+        const seleccionarConPlaywright = async (scope: any) => {
+          const indiceSelectPagina = await scope.locator('select:visible').evaluateAll((selects: HTMLSelectElement[]) => {
+            const normalizar = (valor: string) => String(valor || '').trim().replace(/\s+/g, ' ');
+            const normalizarSinAcentos = (valor: string) => normalizar(valor)
+              .normalize('NFD')
+              .replace(/[\u0300-\u036f]/g, '')
+              .toUpperCase();
+            const labelsPagina = Array.from(document.querySelectorAll('td, th, label, span, div')) as HTMLElement[];
+            const labelPagina = labelsPagina
+              .map((element) => ({ element, rect: element.getBoundingClientRect(), text: normalizarSinAcentos(element.innerText || element.textContent || '') }))
+              .filter((item) => item.rect.width > 0 && item.rect.height > 0)
+              .find((item) => /^PAGINA:?$/.test(item.text));
+            const selectsVisibles = selects
+              .map((select, index) => ({ select, index, rect: select.getBoundingClientRect() }))
+              .filter((item) => item.rect.width > 0 && item.rect.height > 0)
+              .filter((item) => Array.from(item.select.options).every((option) => /^\d+$/.test((option.value || option.textContent || '').trim())));
+
+            const selectPorLabel = labelPagina
+              ? selectsVisibles
+                .filter((item) => item.rect.left > labelPagina.rect.right && Math.abs(item.rect.top - labelPagina.rect.top) < 24)
+                .sort((a, b) => a.rect.left - b.rect.left)[0]
+              : undefined;
+
+            return (selectPorLabel ?? selectsVisibles[0])?.index ?? -1;
+          }).catch(() => -1);
+          if (indiceSelectPagina < 0) return false;
+
+          const selectPagina = scope.locator('select:visible').nth(indiceSelectPagina);
+          if (!await selectPagina.isVisible({ timeout: 3000 }).catch(() => false)) return false;
+
+          const paginaActual = await selectPagina.evaluate((selectElement: HTMLSelectElement) =>
+            selectElement.options[selectElement.selectedIndex]?.textContent?.trim() || selectElement.value
+          );
+          if (paginaActual === pagina) return true;
+
+          await selectPagina.scrollIntoViewIfNeeded().catch(() => undefined);
+          await comprasPage.waitForTimeout(5000);
+          const cajaSelector = await selectPagina.boundingBox();
+          if (cajaSelector) {
+            const paginaActualNumero = Number(paginaActual);
+            const paginaDestinoNumero = Number(pagina);
+            const desplazamiento = Number.isFinite(paginaActualNumero) && Number.isFinite(paginaDestinoNumero)
+              ? Math.abs(paginaDestinoNumero - paginaActualNumero)
+              : 1;
+            await comprasPage.mouse.click(cajaSelector.x + cajaSelector.width / 2, cajaSelector.y + cajaSelector.height / 2);
+            await comprasPage.waitForTimeout(3000);
+            await comprasPage.mouse.click(
+              cajaSelector.x + cajaSelector.width / 2,
+              cajaSelector.y + cajaSelector.height + 12 + (Math.max(desplazamiento, 1) * 22)
+            );
+          } else {
+            await selectPagina.click({ timeout: 10000 });
+          }
+
+          await comprasPage.waitForTimeout(10000);
+
+          let paginaSeleccionada = await selectPagina.evaluate((selectElement: HTMLSelectElement) =>
+            selectElement.options[selectElement.selectedIndex]?.textContent?.trim() || selectElement.value
+          );
+          if (paginaSeleccionada !== pagina) {
+            await selectPagina.selectOption({ label: pagina }).catch(async () => {
+              await selectPagina.selectOption({ value: pagina });
+            });
+            await selectPagina.evaluate((selectElement: HTMLSelectElement) => {
+              selectElement.dispatchEvent(new Event('input', { bubbles: true }));
+              selectElement.dispatchEvent(new Event('change', { bubbles: true }));
+              selectElement.dispatchEvent(new Event('blur', { bubbles: true }));
+            });
+            await comprasPage.waitForTimeout(10000);
+            paginaSeleccionada = await selectPagina.evaluate((selectElement: HTMLSelectElement) =>
+              selectElement.options[selectElement.selectedIndex]?.textContent?.trim() || selectElement.value
+            );
+          }
+          return paginaSeleccionada === pagina;
+        };
+
+        if (usarFrame) {
+          const centerFrame = await obtenerFrameAsignacion();
+          if (centerFrame && await seleccionarConPlaywright(centerFrame)) return true;
+        } else if (await seleccionarConPlaywright(comprasPage)) {
+          return true;
+        }
+
+        const seleccionarPagina = (paginaObjetivo: string) => {
+          const normalizar = (valor: string) => String(valor || '').trim().replace(/\s+/g, ' ');
+          const normalizarSinAcentos = (valor: string) => normalizar(valor)
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .toUpperCase();
+          const labelsPagina = Array.from(document.querySelectorAll('td, th, label, span, div')) as HTMLElement[];
+          const labelPagina = labelsPagina
+            .map((element) => ({ element, rect: element.getBoundingClientRect(), text: normalizarSinAcentos(element.innerText || element.textContent || '') }))
+            .filter((item) => item.rect.width > 0 && item.rect.height > 0)
+            .find((item) => /^PAGINA:?$/.test(item.text));
+          const selects = Array.from(document.querySelectorAll('select')) as HTMLSelectElement[];
+          const selectPagina = labelPagina
+            ? selects
+              .map((select) => ({ select, rect: select.getBoundingClientRect() }))
+              .filter((item) => item.rect.width > 0 && item.rect.height > 0)
+              .filter((item) => item.rect.left > labelPagina.rect.right && Math.abs(item.rect.top - labelPagina.rect.top) < 24)
+              .sort((a, b) => a.rect.left - b.rect.left)[0]?.select
+            : undefined;
+          if (!selectPagina) return false;
+
+          const opciones = Array.from(selectPagina.options);
+          const paginaActual = Number(selectPagina.options[selectPagina.selectedIndex]?.textContent || selectPagina.value || '1');
+          const paginaDestino = Number(paginaObjetivo);
+          if (paginaActual === paginaDestino) return true;
+
+          const rectSelect = selectPagina.getBoundingClientRect();
+          const controlesPagina = Array.from(document.querySelectorAll('a, button, input, img, span'))
+            .map((element) => {
+              const htmlElement = element as HTMLElement;
+              const rect = htmlElement.getBoundingClientRect();
+              return { element: htmlElement, rect, text: normalizar(htmlElement.innerText || htmlElement.getAttribute('title') || htmlElement.getAttribute('alt') || htmlElement.getAttribute('src') || '') };
+            })
+            .filter((item) => item.rect.width > 0 && item.rect.height > 0)
+            .filter((item) => Math.abs(item.rect.top - rectSelect.top) < 24);
+          const controlSiguiente = controlesPagina
+            .filter((item) => item.rect.left > rectSelect.right)
+            .sort((a, b) => a.rect.left - b.rect.left)[0];
+          const controlAnterior = controlesPagina
+            .filter((item) => item.rect.right < rectSelect.left)
+            .sort((a, b) => b.rect.right - a.rect.right)[0];
+          const control = paginaDestino > paginaActual ? controlSiguiente : controlAnterior;
+          if (control) {
+            control.element.click();
+            return true;
+          }
+
+          const opcion = opciones.find((option) =>
+            normalizar(option.value) === paginaObjetivo || normalizar(option.textContent || '') === paginaObjetivo
+          ) || opciones[Number(paginaObjetivo) - 1];
+          if (!opcion) return false;
+
+          selectPagina.value = opcion.value;
+          selectPagina.dispatchEvent(new Event('input', { bubbles: true }));
+          selectPagina.dispatchEvent(new Event('change', { bubbles: true }));
+          selectPagina.dispatchEvent(new Event('blur', { bubbles: true }));
+          return true;
+        };
+
+        if (usarFrame) {
+          const centerFrame = await obtenerFrameAsignacion();
+          if (!centerFrame) return false;
+          return centerFrame.locator('body').evaluate(seleccionarPagina, pagina);
+        }
+
+        return comprasPage.locator('body').evaluate(seleccionarPagina, pagina);
+      };
+
+      const obtenerCajaItemAsignacion = async (): Promise<ResultadoCajaAsignacion> => {
+        const extraerCajaItem = (
+          elements: Element[],
+          datos: { orderReference: string; itemReference: string; paginasDisponibles: string[] }
+        ) => {
+          const normalizar = (valor: string) => String(valor || '')
+            .trim()
+            .replace(/\s+/g, ' ')
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .toUpperCase();
+          const obtenerValor = (element: Element) => {
+            const htmlElement = element as HTMLElement;
+            const input = element as HTMLInputElement;
+            return (
+              input.value ||
+              htmlElement.getAttribute('value') ||
+              htmlElement.innerText ||
+              htmlElement.textContent ||
+              htmlElement.title ||
+              htmlElement.getAttribute('aria-label') ||
+              ''
+            ).trim();
+          };
+          const seCruzaHorizontalmente = (celda: { x: number; width: number }, header: { x: number; width: number }) =>
+            celda.x < header.x + header.width && celda.x + celda.width > header.x;
+          const valorItemCoincide = (valor: string) => {
+            const normalizado = normalizar(valor);
+            const itemNormalizado = normalizar(datos.itemReference);
+            return normalizado === itemNormalizado || String(Number(normalizado)) === String(Number(itemNormalizado));
+          };
+
+          const visibles = elements
+            .map((element) => {
+              const htmlElement = element as HTMLElement;
+              const rect = htmlElement.getBoundingClientRect();
+              const value = obtenerValor(element);
+              const select = element as HTMLSelectElement;
+              const selectedOption = select.tagName === 'SELECT'
+                ? (select.options[select.selectedIndex]?.value || select.options[select.selectedIndex]?.text || '')
+                : '';
+              return {
+                element: htmlElement,
+                value,
+                normalized: normalizar(value || selectedOption),
+                x: rect.x,
+                y: rect.y,
+                width: rect.width,
+                height: rect.height,
+              };
+            })
+            .filter((item) => item.width > 0 && item.height > 0);
+
+          const paginaActual = visibles.find((item) =>
+            item.element.tagName === 'SELECT'
+            && Array.from((item.element as HTMLSelectElement).options).every((option) => /^\d+$/.test((option.value || option.textContent || '').trim()))
+          )?.normalized || '';
+          const buscarHeaderGrilla = (regex: RegExp) => visibles
+            .filter((item) => regex.test(item.normalized))
+            .sort((a, b) => b.y - a.y)[0];
+          const headers = {
+            orden: buscarHeaderGrilla(/ORDEN/),
+            item: buscarHeaderGrilla(/\bITEM\b/),
+            fbe: buscarHeaderGrilla(/^FBE$/),
+            caja: buscarHeaderGrilla(/^CAJA$|^BOX$|^BOX CODE$/),
+          };
+
+          const filas = Array.from(document.querySelectorAll('tr, .ag-row'))
+            .map((fila) => {
+              const celdas = Array.from(fila.children)
+                .filter((child) => child.matches('td, th, [colid], .ag-cell'))
+                .map((child) => {
+                  const childHtml = child as HTMLElement;
+                  const childRect = childHtml.getBoundingClientRect();
+                  const value = obtenerValor(child);
+                  return {
+                    value,
+                    normalized: normalizar(value),
+                    x: childRect.x,
+                    y: childRect.y,
+                    width: childRect.width,
+                    height: childRect.height,
+                    colid: child.getAttribute('colid') || '',
+                  };
+                })
+                .filter((celda) => celda.width > 0 && celda.height > 0);
+              const obtenerCeldaPorHeader = (header: { x: number; width: number } | undefined, regexColid: RegExp) =>
+                celdas.find((celda) => regexColid.test(celda.colid))
+                || (header ? celdas.find((celda) => seCruzaHorizontalmente(celda, header)) : undefined);
+              const celdaOrden = obtenerCeldaPorHeader(headers.orden, /order/i);
+              const celdaItem = obtenerCeldaPorHeader(headers.item, /^item$/i);
+              const celdasOrdenadas = [...celdas].sort((a, b) => a.x - b.x);
+              const indiceCeldaItem = celdaItem ? celdasOrdenadas.findIndex((celda) => celda === celdaItem) : -1;
+              const celdaCajaPorIndice = indiceCeldaItem >= 0 ? celdasOrdenadas[indiceCeldaItem + 6] : undefined;
+              const celdaFbe = obtenerCeldaPorHeader(headers.fbe, /fbe/i);
+              const celdaCajaPorFbe = celdaFbe
+                ? celdas
+                  .filter((celda) => celda.x > celdaFbe.x + celdaFbe.width * 0.6)
+                  .sort((a, b) => a.x - b.x)[0]
+                : undefined;
+              const celdaCaja = celdaCajaPorIndice || celdaCajaPorFbe || obtenerCeldaPorHeader(headers.caja, /box|caja/i);
+
+              return {
+                orden: celdaOrden?.value || '',
+                item: celdaItem?.value || '',
+                caja: celdaCaja?.value || '',
+                ordenNormalizada: normalizar(celdaOrden?.value || ''),
+                itemNormalizado: normalizar(celdaItem?.value || ''),
+              };
+            })
+            .filter((fila) => fila.orden || fila.item || fila.caja);
+
+          const filaObjetivo = filas.find((fila) =>
+            fila.ordenNormalizada === normalizar(datos.orderReference) && valorItemCoincide(fila.itemNormalizado)
+          );
+          const filasVisibles = filas
+            .filter((fila) => fila.ordenNormalizada === normalizar(datos.orderReference))
+            .map((fila) => ({ orden: fila.orden, item: fila.item, caja: fila.caja }));
+
+          return filaObjetivo
+            ? { encontrado: true, pagina: paginaActual, orden: filaObjetivo.orden, item: filaObjetivo.item, caja: filaObjetivo.caja, filasVisibles, paginasDisponibles: datos.paginasDisponibles }
+            : { encontrado: false, pagina: paginaActual, orden: datos.orderReference, item: datos.itemReference, caja: '', filasVisibles, paginasDisponibles: datos.paginasDisponibles };
+        };
+
+        const paginasDisponibles = await obtenerPaginasDisponiblesAsignacion();
+        const args = { orderReference: orderReferenceCapturado, itemReference: itemOrderReferenceCapturado, paginasDisponibles };
+
+        if (usarFrame) {
+          const centerFrame = await obtenerFrameAsignacion();
+          if (!centerFrame) {
+            return { encontrado: false, pagina: '', orden: orderReferenceCapturado, item: itemOrderReferenceCapturado, caja: '', filasVisibles: [], paginasDisponibles };
+          }
+          return centerFrame.locator(selectorElementosAsignacion).evaluateAll(extraerCajaItem, args);
+        }
+
+        return comprasPage.locator(selectorElementosAsignacion).evaluateAll(extraerCajaItem, args);
+      };
+
+      const buscarCajaItemEnPaginasAsignacion = async (intento: number) => {
+        const paginasDisponibles = await obtenerPaginasDisponiblesAsignacion();
+        const paginas = paginasDisponibles.length > 0 ? paginasDisponibles : ['1'];
+        let ultimoResultado: ResultadoCajaAsignacion | null = null;
+
+        for (const [indicePagina, paginaAsignacion] of paginas.entries()) {
+          if (indicePagina > 0) {
+            await comprasPage.waitForTimeout(8000);
+            const paginaSeleccionada = await seleccionarPaginaAsignacion(paginaAsignacion);
+            expect(paginaSeleccionada, `Debe poder cambiar a la pagina ${paginaAsignacion} en Asignacion de ordenes`).toBeTruthy();
+            await comprasPage.waitForTimeout(12000);
+            await esperarCargaAsignacion();
+            await tomarScreenshotPagina(comprasPage, `reports/screenshots/16-betagr-asignacion-pagina-${paginaAsignacion}-seleccionada-intento-${intento}.png`);
+          }
+
+          let resultado = await obtenerCajaItemAsignacion();
+          if (indicePagina > 0 && !resultado.encontrado && resultado.filasVisibles.length === 0) {
+            const tiempoMaximoPagina = Date.now() + 60000;
+            while (Date.now() < tiempoMaximoPagina && !resultado.encontrado && resultado.filasVisibles.length === 0) {
+              await comprasPage.waitForTimeout(3000);
+              await esperarCargaAsignacion();
+              resultado = await obtenerCajaItemAsignacion();
+            }
+          }
+
+          ultimoResultado = resultado;
+          fs.writeFileSync(
+            `reports/html/16-betagr-caja-item-${orderReferenceCapturado}-${itemOrderReferenceCapturado}-intento-${intento}-pagina-${paginaAsignacion}.json`,
+            JSON.stringify(resultado, null, 2)
+          );
+
+          if (resultado.encontrado) {
+            await tomarScreenshotPagina(comprasPage, `reports/screenshots/16-betagr-asignacion-item-${itemOrderReferenceCapturado}-pagina-${paginaAsignacion}.png`);
+            return resultado;
+          }
+        }
+
+        return ultimoResultado ?? { encontrado: false, pagina: '', orden: orderReferenceCapturado, item: itemOrderReferenceCapturado, caja: '', filasVisibles: [], paginasDisponibles: paginas };
+      };
+
       let boxCodeVisible = false;
       const maxIntentosAsignacion = 5;
 
       for (let intento = 1; intento <= maxIntentosAsignacion; intento++) {
-        const valoresCajaAsignacion = await obtenerValoresCajaAsignacion();
+        const resultadoCajaAsignacion = await buscarCajaItemEnPaginasAsignacion(intento);
         fs.writeFileSync(
           `reports/html/16-betagr-caja-candidatos-intento-${intento}.json`,
-          JSON.stringify(valoresCajaAsignacion, null, 2)
+          JSON.stringify(resultadoCajaAsignacion, null, 2)
         );
-        boxCodeVisible = valoresCajaAsignacion.some((valor) => {
-          const valorNormalizado = normalizarBoxCode(valor);
-          return valorNormalizado === boxCodeEsperado;
-        });
+        boxCodeVisible = resultadoCajaAsignacion.encontrado && normalizarBoxCode(resultadoCajaAsignacion.caja) === boxCodeEsperado;
 
         if (boxCodeVisible) {
           console.log(`✅ SUCCESS: Caja ${valorBoxCodeAsignado} coincide con el Box Code asignado en QU para ${orderReferenceCapturado}`);

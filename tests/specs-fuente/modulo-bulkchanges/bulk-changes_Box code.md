@@ -144,8 +144,9 @@ Artefactos generados:
   - se toma `value`, `textContent`, `title` o `aria-label`
   - se normaliza el texto eliminando espacios repetidos y pasando a mayusculas
   - se compara contra `valorBoxCodeAsignado`
-  - si el valor aun no aparece despues de la primera busqueda, se reintenta la busqueda en Order Entry hasta 5 intentos
-  - entre reintentos se espera 30 segundos para permitir propagacion del cambio aplicado
+  - si el valor aun no aparece despues de la primera busqueda por carga lenta de la pagina, se refresca la busqueda en Order Entry y se espera 1 minuto antes del siguiente intento
+  - la espera de 1 minuto solo aplica cuando no es posible visualizar el Box Code requerido; si el valor aparece, la prueba continua sin espera adicional
+  - se reintenta la validacion en Order Entry hasta 5 intentos
 - Evidencias:
   - `reports/html/12-order-entry.html`
   - `reports/html/12-order-entry-box-code-values.json`
@@ -179,8 +180,8 @@ Artefactos generados:
   - `xpath=/html/body/form/div[3]/div[1]/table/tbody/tr[1]/td/table/tbody/tr/td[1]/table/tbody/tr[1]/td[7]/div[2]/div[1]/div[1]/input`
 - Filtro Fecha:
   - se ubica el selector asociado al label visible `Fecha`
-  - si no hay ordenes despues de buscar por prefijo con `Todos`, se selecciona `UC`
-  - despues de cambiar a `UC`, se ejecuta `Actualizar` nuevamente antes de validar `Caja`
+  - despues de aplicar el rango de fechas del mes actual, se selecciona siempre `UC`
+  - despues de cambiar a `UC`, se ejecuta `Actualizar` antes de validar `Caja`
 - Fecha desde calendario:
   - `xpath=/html/body/form/div[3]/div[1]/table/tbody/tr[1]/td/table/tbody/tr/td[1]/table/tbody/tr[3]/td[6]/img`
 - Fecha desde input:
@@ -194,14 +195,17 @@ Artefactos generados:
   - `#backgroundLoadingMain`
 
 ### Validacion Caja
-- Se buscan elementos visibles `td`, `th`, `span`, `div` e `input`.
-- Se localizan encabezados que coincidan con `/^(caja|box|box code):?$/i`.
-- Se extraen valores ubicados debajo del encabezado y alineados horizontalmente con esa columna.
+- En BETA GR, despues de aplicar el rango de fechas del mes actual, se cambia siempre el filtro `Fecha` a `UC`, se actualiza la grilla y se lee la columna `Caja`.
+- La validacion debe buscar la fila exacta que coincida con la orden y el item capturados desde Bulk Changes.
+- Si la orden tiene varias paginas en la grilla, la prueba debe recorrer las paginas disponibles hasta encontrar el item objetivo.
+- Al cambiar de pagina en GR, la prueba debe abrir el selector `Pagina`, seleccionar la pagina objetivo, por ejemplo `2`, y esperar antes y despues de la seleccion para asegurar que la grilla termine de actualizar antes de leer `Caja`.
+- Si despues de cambiar de pagina la grilla queda temporalmente vacia, la prueba debe esperar hasta 1 minuto y volver a leer la pagina antes de decidir que el item no existe.
+- Para cada pagina se leen las columnas `Orden#`, `Item` y `Caja`; no se permite validar contra otra fila de la misma orden.
+- En la grilla de GR, `Caja` debe tomarse de la celda real de la fila objetivo, ubicada despues de `FBE`, evitando confundirla con `FBE` u otros valores numericos.
 - No se compara contra todos los textos visibles de la pantalla, para evitar falsos positivos con valores como `FBE`.
 - Se normalizan los valores eliminando espacios repetidos y pasando a mayusculas.
-- Se compara exactamente contra `valorBoxCodeAsignado`.
-- Si la busqueda inicial en BETA GR no devuelve ordenes (`Total Items` igual a 0 o mensaje `No se encontraron registros.`), se cambia el filtro `Fecha` a `UC`, se actualiza la grilla y se repite la lectura de candidatos.
-- Si no coincide, se refresca la busqueda y se espera 30 segundos antes del siguiente intento.
+- Se compara exactamente la columna `Caja` de la fila objetivo contra `valorBoxCodeAsignado`.
+- Si la fila objetivo no se encuentra o `Caja` no coincide, se refresca la busqueda y se espera 30 segundos antes del siguiente intento.
 - Maximo de intentos: 5.
 - Al coincidir, se cierran `comprasPage` y `page`, y el test finaliza.
 - Evidencias por intento:
@@ -264,27 +268,30 @@ Artefactos generados:
 26. Navegar a Sales -> New -> Order Entry.
 27. Buscar la orden usando el prefijo capturado.
 28. Validar que el Box Code asignado se visualice en Order Entry.
-29. Si el Box Code aun no aparece en Order Entry, refrescar la busqueda y esperar 30 segundos antes del siguiente intento.
+29. Si el Box Code aun no aparece en Order Entry por carga lenta de la pagina, refrescar la busqueda y esperar 1 minuto antes del siguiente intento.
 30. Reintentar la validacion de Order Entry hasta un maximo de 5 intentos.
 31. Abrir BETA GR en una nueva pagina.
 32. Iniciar sesion en BETA GR si la pantalla lo solicita.
 33. Navegar a Compras -> Asignacion de ordenes.
 34. Aplicar rango de fechas del mes actual.
-35. Ingresar el prefijo de la orden capturada.
-36. Seleccionar filtro Todos.
-37. Ejecutar Actualizar.
-38. Si no se encuentran ordenes despues de buscar por prefijo con el filtro `Todos`, cambiar el filtro `Fecha` a `UC` y ejecutar `Actualizar` nuevamente.
-39. Extraer candidatos visibles del campo `Caja`.
-40. Normalizar los candidatos eliminando espacios repetidos y pasando a mayusculas.
-41. Comparar exactamente los valores de la columna `Caja` contra el Box Code asignado en QU.
-42. Si no coincide, refrescar la busqueda y esperar 30 segundos antes del siguiente intento.
-43. Reintentar hasta un maximo de 5 intentos.
-44. Cuando `Caja` coincida, tomar evidencia final natural en GR.
-45. Cerrar las paginas del navegador y finalizar el test.
+35. Cambiar el filtro `Fecha` a `UC`.
+36. Ingresar el prefijo de la orden capturada.
+37. Seleccionar filtro Todos.
+38. Ejecutar Actualizar.
+39. Buscar la fila exacta que coincida con el prefijo de orden y el item capturado.
+40. Si la fila exacta no aparece en la pagina actual, recorrer las paginas disponibles de la grilla hasta encontrarla.
+41. Abrir el selector `Pagina`, seleccionar la pagina objetivo, por ejemplo `2`, y esperar lo suficiente antes y despues para que la grilla termine de cargar.
+42. Si la pagina seleccionada queda temporalmente vacia, esperar hasta 1 minuto y volver a leer la grilla.
+43. Extraer el valor de la columna `Caja` en la fila exacta de la orden-item.
+44. Comparar exactamente `Caja` contra el Box Code asignado en QU.
+45. Si la fila no aparece o `Caja` no coincide, refrescar la busqueda y esperar 30 segundos antes del siguiente intento.
+46. Reintentar hasta un maximo de 5 intentos.
+47. Cuando `Caja` coincida en la fila exacta, tomar evidencia final natural en GR.
+48. Cerrar las paginas del navegador y finalizar el test.
 
 ### Resultado esperado
 
-El cambio masivo de Box Code se aplica correctamente en Bulk Changes, el valor queda visible en Order Entry y el campo `Caja` en BETA GR coincide con el Box Code asignado desde QU. Si el registro seleccionado no tiene una opcion diferente disponible, el test debe evaluar los siguientes registros visibles hasta encontrar uno que permita un cambio real. Si no hay ordenes visibles en GR con el filtro de fecha inicial, la prueba cambia `Fecha` a `UC` y repite la busqueda antes de validar `Caja`. Si ninguna fila visible cumple, debe finalizar con el mensaje: `No es posible encontrar una Order Reference que cumpla con las condiciones para realizar la prueba`.
+El cambio masivo de Box Code se aplica correctamente en Bulk Changes, el valor queda visible en Order Entry y el campo `Caja` en BETA GR coincide con el Box Code asignado desde QU. Si el registro seleccionado no tiene una opcion diferente disponible, el test debe evaluar los siguientes registros visibles hasta encontrar uno que permita un cambio real. En BETA GR, la prueba cambia siempre `Fecha` a `UC` despues de aplicar el rango de fechas del mes actual y antes de validar `Caja`. Si ninguna fila visible cumple, debe finalizar con el mensaje: `No es posible encontrar una Order Reference que cumpla con las condiciones para realizar la prueba`.
 
 ### Evidencias del caso
 
@@ -308,7 +315,9 @@ El cambio masivo de Box Code se aplica correctamente en Bulk Changes, el valor q
 - `reports/screenshots/14-betagr-compras.png`
 - `reports/screenshots/15-betagr-asignacion-ordenes.png`
 - `reports/screenshots/16-betagr-asignacion-actualizada.png`
-- `reports/screenshots/16-betagr-asignacion-filtro-uc.png`, si aplica
+- `reports/screenshots/16-betagr-asignacion-filtro-uc.png`
+- `reports/screenshots/16-betagr-asignacion-pagina-{pagina}-seleccionada-intento-{intento}.png`, si aplica
+- `reports/screenshots/16-betagr-asignacion-item-{item}-pagina-{pagina}.png`, si aplica
 - `reports/screenshots/16-betagr-asignacion-refresh-{intento}.png`
 - `reports/screenshots/17-betagr-box-code-confirmado.png`
 - `reports/screenshots/18-betagr-box-code-evidencia-gr.png`
@@ -325,8 +334,7 @@ El cambio masivo de Box Code se aplica correctamente en Bulk Changes, el valor q
 - `reports/html/12-order-entry.html`
 - `reports/html/12-order-entry-box-code-values.json`
 - `reports/html/12-order-entry-box-code-values-intento-{intento}.json`
-- `reports/html/16-betagr-total-items-filtro-fecha-original.json`, si aplica
-- `reports/html/16-betagr-total-items-filtro-uc.json`, si aplica
+- `reports/html/16-betagr-caja-item-{orden}-{item}-intento-{intento}-pagina-{pagina}.json`
 - `reports/html/16-betagr-caja-candidatos-intento-{intento}.json`
 
 ---
@@ -396,9 +404,9 @@ Ejecucion validada:
 
 ## Ajuste 2026-09-01 - Filtro Fecha UC en GR
 
-Cuando BETA GR no devuelve ordenes despues de buscar por el prefijo capturado y activar el filtro `Todos`, la prueba debe cambiar el selector `Fecha` a `UC` y ejecutar `Actualizar` nuevamente. La validacion de `Caja` se realiza despues de ese fallback.
+En BETA GR, despues de aplicar el rango de fechas del mes actual, la prueba debe cambiar siempre el selector `Fecha` a `UC` antes de ejecutar `Actualizar` y validar `Caja`.
 
-Este ajuste cubre el mismo comportamiento observado en las pruebas de Bulk Changes donde la orden puede no aparecer con el filtro de fecha inicial, pero si estar disponible al cambiar `Fecha` a `UC`.
+Este ajuste deja `UC` como condicion obligatoria de consulta en BETA GR para Box Code antes de validar el campo `Caja`.
 
 ### Ejecucion validada 2026-09-01
 
@@ -419,8 +427,7 @@ Resultado:
 - Box Code asignado: `H`.
 - Confirmacion Apply: proceso finalizado correctamente con indicador de exito.
 - Validacion QU Order Entry: Box Code `H` visible para el prefijo `PD4777`.
-- Validacion inicial BETA GR: no se encontraron ordenes con el filtro de fecha del mes actual y filtro `Todos`.
-- Fallback aplicado en BETA GR: cambio del filtro `Fecha` a `UC` y nueva ejecucion de `Actualizar`.
+- Regla aplicada en BETA GR: cambio obligatorio del filtro `Fecha` a `UC` despues de aplicar el rango de fecha del mes actual.
 - Validacion final BETA GR: campo `Caja` coincide con `H` para `PD4777`.
 - Documento generado: `C:\Users\DianaSPS\Documents\Pruebas Bulk Changes\Bulk-changes_BoxCode_20260901.docx`.
 - Imagenes incluidas en el documento: `22`.
@@ -433,7 +440,7 @@ Resultado:
 - El formulario de Box Code usa un modal con un `select` HTML nativo, no un listbox de Material UI.
 - Cuando no exista una opcion diferente para la fila seleccionada, el formulario se cierra antes de cambiar a la siguiente fila porque el backdrop del modal bloquea la grilla.
 - En la ejecucion validada del 2026-08-31, las primeras cuatro filas tenian Box Code `H` sin alternativa diferente y la fila `PD4628-005` permitio asignar `Q`.
-- Si BETA GR no encuentra ordenes al buscar por prefijo con el filtro `Todos`, se cambia el filtro `Fecha` a `UC` y se vuelve a actualizar antes de evaluar `Caja`.
+- En BETA GR, despues de aplicar el rango de fecha del mes actual, se cambia siempre el filtro `Fecha` a `UC` y se actualiza antes de evaluar `Caja`.
 - La validacion de BETA GR depende del encabezado `Caja`; si el texto del encabezado cambia, actualizar la expresion `/^(caja|box|box code):?$/i`.
 - La prueba incluye reintentos de navegacion a BETA GR si el dominio devuelve temporalmente `404 Web Site not found`.
 - La prueba no usa Page Class por decision del requerimiento.
