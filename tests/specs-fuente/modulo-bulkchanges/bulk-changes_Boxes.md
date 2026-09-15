@@ -26,37 +26,44 @@ El documento de evidencias debe generarse automaticamente en Word al finalizar l
 3. Navegar a `Sales -> Bulk Changes`.
 4. Ejecutar `Search` sin modificar fechas.
 5. Seleccionar el checkbox del primer registro visible.
-6. Capturar el `Order Reference` completo y derivar su prefijo `XX####`.
+6. Capturar el `Order Reference` completo, derivar su prefijo `XX####`, conservar el item `###` y capturar el valor actual contenido en el campo `Boxes` de la fila seleccionada.
 7. Abrir el selector de campo para cambio masivo.
 8. Seleccionar la opcion `BOXES`.
-9. Generar un valor aleatorio de `BOXES` entre `1` y `20`.
+9. Generar un valor aleatorio de `BOXES` entre `1` y `20`, validando que sea diferente al valor de `Boxes` capturado en el paso 6.
 10. Ingresar el valor generado en el formulario de `BOXES`.
 11. Guardar el cambio con `Save`.
 12. Aplicar el cambio masivo con `Apply`.
 13. Confirmar que el proceso `Apply` finalice correctamente mediante mensaje o estado de exito.
 14. Navegar a `Sales -> New -> Order Entry`.
 15. Buscar la orden usando el prefijo capturado.
-16. Validar que el valor `BOXES` asignado se visualice en `Order Entry`.
-17. Abrir BETA GR.
-18. Navegar a `Compras -> Asignacion de ordenes`.
-19. Aplicar el rango de fechas del mes actual.
-20. Buscar la orden por el prefijo capturado y activar el filtro `Todos`.
-21. Si no se encuentran ordenes despues de buscar por prefijo con el filtro `Todos`, cambiar el filtro `Fecha` a `UC` y actualizar nuevamente.
-22. Validar que el campo `TOTAL` coincida exactamente con el valor `BOXES` aplicado en QU.
-23. Si `TOTAL` aun no coincide, refrescar la busqueda hasta 5 intentos, esperando 30 segundos entre intentos.
-24. Tomar evidencia final en GR.
-25. Cerrar las paginas del navegador y finalizar el test.
-26. Generar el documento Word con las capturas recientes relevantes de la ejecucion, excluyendo capturas redundantes.
-27. Generar el video completo de la ejecucion en la carpeta de evidencias, reemplazando el video del mismo dia si ya existe.
+16. Si despues de la consulta no se visualiza el valor `BOXES` esperado por carga lenta de la pagina, esperar hasta 1 minuto y volver a realizar la consulta en `Order Entry`.
+17. Validar que el valor `BOXES` asignado se visualice en `Order Entry`.
+18. Abrir BETA GR.
+19. Navegar a `Compras -> Asignacion de ordenes`.
+20. Aplicar el rango de fechas del mes actual.
+21. Cambiar el filtro `Fecha` a `UC`.
+22. Buscar la orden por el prefijo capturado, activar el filtro `Todos` y actualizar la busqueda.
+23. Ubicar la fila exacta que coincida con la orden y el item capturados; si la grilla tiene varias paginas, cambiar de pagina hasta encontrar el item.
+24. Validar que el campo `TOTAL` de esa fila exacta coincida con el valor `BOXES` aplicado en QU.
+25. Si `TOTAL` aun no coincide, refrescar la busqueda hasta 5 intentos, esperando 30 segundos entre intentos.
+26. Tomar evidencia final en GR.
+27. Cerrar las paginas del navegador y finalizar el test.
+28. Generar el documento Word con las capturas recientes relevantes de la ejecucion, excluyendo capturas redundantes.
+29. Generar el video completo de la ejecucion en la carpeta de evidencias, reemplazando el video del mismo dia si ya existe.
 
 ## Reglas de validacion
 
 - El `Order Reference` debe capturarse desde la fila seleccionada en Bulk Changes.
 - El prefijo de orden debe tener formato `XX####`.
+- El item de la orden debe capturarse desde el `Order Reference` completo y usarse en la validacion de BETA GR.
+- El valor actual de `Boxes` debe capturarse desde la fila seleccionada antes de aplicar el cambio masivo.
 - El valor `BOXES` debe ser numerico y estar entre `1` y `20`.
+- El valor aleatorio de `BOXES` generado para el cambio debe ser diferente al valor de `Boxes` capturado en la fila seleccionada.
 - El valor aplicado debe visualizarse en `Order Entry`.
-- En BETA GR, el campo `TOTAL` debe coincidir exactamente con el valor `BOXES` asignado.
-- Si BETA GR no devuelve ordenes usando el filtro de fecha inicial y `Todos`, se debe cambiar el filtro `Fecha` a `UC` antes de validar `TOTAL`.
+- Si `Order Entry` tarda en cargar y no se visualiza el valor `BOXES` esperado despues de la primera consulta, la prueba debe esperar hasta 1 minuto, repetir la consulta del prefijo y volver a validar antes de fallar.
+- En BETA GR, el campo `TOTAL` debe coincidir exactamente con el valor `BOXES` asignado en la fila de la orden-item capturada; no se permite validar contra otra fila de la misma orden.
+- En BETA GR, despues de aplicar el rango de fechas del mes actual, se debe cambiar siempre el filtro `Fecha` a `UC` antes de validar `TOTAL`.
+- En BETA GR, si la orden tiene varias paginas de resultados, la prueba debe cambiar la pagina de la grilla hasta ubicar el item capturado antes de comparar `TOTAL`; el cambio de pagina debe hacerse con espera controlada antes y despues de seleccionar la pagina para permitir que la grilla recargue.
 - La validacion en GR puede requerir reintentos por latencia de propagacion.
 - Los errores de persistencia de `qa_metrics` no bloquean la validacion funcional.
 
@@ -81,11 +88,14 @@ Capturas generadas por el test:
 - `11-final-state.png`
 - `12-order-entry.png`
 - `12-order-entry-frame.png`
+- `12-order-entry-retry.png`, si aplica
+- `12-order-entry-frame-retry.png`, si aplica
 - `13-betagr-inicio.png`
 - `14-betagr-compras.png`
 - `15-betagr-asignacion-ordenes.png`
 - `16-betagr-asignacion-actualizada.png`
 - `16-betagr-asignacion-filtro-uc.png`, si aplica
+- `16-betagr-asignacion-item-{item}-pagina-{pagina}.png`, si aplica
 - `16-betagr-asignacion-refresh-{intento}.png`, si aplica
 - `17-betagr-cambio-gr-confirmado.png`
 
@@ -119,7 +129,9 @@ Capturas redundantes que no deben incluirse en el documento Word:
 Diagnosticos principales:
 
 - `reports/html/12-order-entry-inputs.json`
-- `reports/html/16-betagr-total-candidatos-filtro-fecha-original.json`, si aplica
+- `reports/html/12-order-entry-retry.html`, si aplica
+- `reports/html/12-order-entry-inputs-retry.json`, si aplica
+- `reports/html/16-betagr-total-item-{orden}-{item}-intento-{intento}-pagina-{pagina}.json`, si aplica
 - `reports/html/16-betagr-total-candidatos-intento-{intento}.json`
 
 ## Documento Word
@@ -169,8 +181,8 @@ npm.cmd run test:bulkchanges:boxes:visible:word:video
 - La prueba finaliza con `1 passed`.
 - El cambio `BOXES` queda confirmado con `Apply`.
 - El valor `BOXES` se valida en `Order Entry`.
-- El valor `BOXES` coincide con `TOTAL` en BETA GR.
-- Si no hay ordenes visibles en GR con el filtro de fecha inicial, la prueba cambia `Fecha` a `UC` y repite la busqueda antes de fallar.
+- El valor `BOXES` coincide con `TOTAL` en BETA GR para la orden-item capturada.
+- En BETA GR, la prueba cambia siempre `Fecha` a `UC` despues de aplicar el rango de fechas del mes actual y antes de validar `TOTAL`.
 - Se genera el documento Word en la ruta esperada.
 - Se genera el video completo de la prueba en la ruta esperada.
 - Si ya existe un video del mismo dia, se reemplaza por el de la ultima ejecucion.
@@ -179,9 +191,13 @@ npm.cmd run test:bulkchanges:boxes:visible:word:video
 
 ## Ajuste 2026-09-01 - Filtro Fecha UC en GR
 
-Cuando BETA GR no devuelve ordenes despues de buscar por el prefijo capturado y activar el filtro `Todos`, la prueba debe cambiar el selector `Fecha` a `UC` y ejecutar `Actualizar` nuevamente. La validacion de `TOTAL` se realiza despues de ese fallback.
+En BETA GR, despues de aplicar el rango de fechas del mes actual, la prueba debe cambiar siempre el selector `Fecha` a `UC` antes de ejecutar `Actualizar` y validar `TOTAL`.
 
-Este ajuste cubre el caso observado con `PD5309`, donde la orden no aparecia con el filtro de fecha inicial, pero si estaba disponible al cambiar `Fecha` a `UC`.
+Este ajuste deja `UC` como condicion obligatoria de consulta en BETA GR para Boxes antes de validar el campo `TOTAL`.
+
+## Ajuste 2026-09-11 - Validacion por orden-item en GR
+
+La validacion de BETA GR debe comparar el campo `TOTAL` en la fila exacta que coincida con la orden y el item capturados desde Bulk Changes. Si la orden tiene mas filas que las visibles en la primera pagina de la grilla, la prueba debe recorrer las paginas disponibles hasta encontrar el item objetivo y solo entonces comparar `TOTAL`. Al cambiar de pagina, la prueba debe esperar antes y despues de seleccionar la pagina para evitar leer la grilla antes de que termine de cargar.
 
 ### Ejecucion validada 2026-09-01
 
@@ -200,8 +216,7 @@ Resultado:
 - Valor `BOXES` aplicado en QU: `1`.
 - Confirmacion Apply: proceso finalizado correctamente con indicador de exito.
 - Validacion QU Order Entry: `BOXES=1` visible para el prefijo `PD5309`.
-- Validacion inicial BETA GR: no se encontraron ordenes con el filtro de fecha del mes actual y filtro `Todos`.
-- Fallback aplicado en BETA GR: cambio del filtro `Fecha` a `UC` y nueva ejecucion de `Actualizar`.
+- Regla aplicada en BETA GR: cambio obligatorio del filtro `Fecha` a `UC` despues de aplicar el rango de fecha del mes actual.
 - Validacion final BETA GR: campo `TOTAL` coincide con `BOXES=1` para `PD5309`.
 - Documento generado: `C:\Users\DianaSPS\Documents\Pruebas Bulk Changes\Bulk-changes-Boxes_20260901.docx`.
 - Imagenes incluidas en el documento: `21`.

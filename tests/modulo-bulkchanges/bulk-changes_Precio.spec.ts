@@ -633,8 +633,11 @@ test.describe('MÃ³dulo Bulk Changes â€” Flujo principal Price', () => {
     await test.step('Abrir BETA GR y navegar a Compras -> Asignacion de ordenes', async () => {
       const t0 = Date.now();
       const comprasPage = await page.context().newPage();
+      await comprasPage.setViewportSize({ width: 1920, height: 1200 });
+      await comprasPage.bringToFront();
 
       await comprasPage.goto('https://betagr.ghtcorptest.com/', { waitUntil: 'domcontentloaded' });
+      await comprasPage.bringToFront();
       await comprasPage.waitForTimeout(3000);
       await tomarScreenshotPagina(comprasPage, 'reports/screenshots/13-betagr-inicio.png');
 
@@ -646,6 +649,7 @@ test.describe('MÃ³dulo Bulk Changes â€” Flujo principal Price', () => {
         await waitForAppReady(comprasPage, 30000);
         await clickResilient(comprasPage.locator('#btnSigIn'));
         await waitForAppReady(comprasPage, 30000);
+        await comprasPage.bringToFront();
         console.log('âœ… Login realizado en BETA GR');
       }
 
@@ -691,6 +695,7 @@ test.describe('MÃ³dulo Bulk Changes â€” Flujo principal Price', () => {
         frameMenu.locator(asignacionOrdenesXpath),
       ]);
       await comprasPage.waitForTimeout(8000);
+      await comprasPage.bringToFront();
       console.log('âœ… Click en AsignaciÃ³n de ordenes');
       await tomarScreenshotPagina(comprasPage, 'reports/screenshots/15-betagr-asignacion-ordenes.png');
 
@@ -784,7 +789,7 @@ test.describe('MÃ³dulo Bulk Changes â€” Flujo principal Price', () => {
           return true;
         });
 
-        expect(cambioRealizado, 'Debe poder cambiar el filtro Fecha a UC cuando no se encuentran ordenes').toBeTruthy();
+        expect(cambioRealizado, 'Debe poder cambiar el filtro Fecha a UC antes de validar Precio Unidad').toBeTruthy();
       };
 
       const aplicarFiltroFechaUCAsignacion = async () => {
@@ -799,7 +804,7 @@ test.describe('MÃ³dulo Bulk Changes â€” Flujo principal Price', () => {
         }
 
         filtroFechaUCActivado = true;
-        console.log('✅ No se encontraron ordenes con el filtro de fecha actual. Filtro Fecha cambiado a UC.');
+        console.log('✅ Filtro Fecha cambiado a UC antes de validar Precio Unidad.');
       };
 
       const aplicarRangoFechasMesAsignacion = async () => {
@@ -816,8 +821,9 @@ test.describe('MÃ³dulo Bulk Changes â€” Flujo principal Price', () => {
         console.log(`âœ… Rango de fechas GR aplicado: ${fechaDesdeMes} - ${fechaHastaMes}`);
       };
 
-      const aplicarBusquedaAsignacion = async () => {
+      const aplicarBusquedaAsignacion = async (opciones: { aplicarRangoFechas?: boolean } = {}) => {
         await esperarCargaAsignacion();
+        const debeAplicarRangoFechas = opciones.aplicarRangoFechas ?? true;
 
         const marcarFiltroTodos = async (locator: any) => {
           await esperarCargaAsignacion();
@@ -840,14 +846,14 @@ test.describe('MÃ³dulo Bulk Changes â€” Flujo principal Price', () => {
 
         if (usarFrame) {
           await asignacionFrame.locator(prefijoInputXpath).fill(orderReferenceCapturado);
-          await aplicarRangoFechasMesAsignacion();
+          if (debeAplicarRangoFechas) await aplicarRangoFechasMesAsignacion();
           await marcarFiltroTodos(asignacionFrame.locator(filtroTodosXpath));
           await esperarCargaAsignacion();
           await asignacionFrame.locator(actualizarXpath).click({ timeout: 10000 });
         } else {
           await comprasPage.locator(prefijoInputXpath).waitFor({ state: 'visible', timeout: 20000 });
           await comprasPage.locator(prefijoInputXpath).fill(orderReferenceCapturado);
-          await aplicarRangoFechasMesAsignacion();
+          if (debeAplicarRangoFechas) await aplicarRangoFechasMesAsignacion();
           await marcarFiltroTodos(comprasPage.locator(filtroTodosXpath));
           await esperarCargaAsignacion();
           await comprasPage.locator(actualizarXpath).click({ timeout: 10000 });
@@ -1004,9 +1010,11 @@ test.describe('MÃ³dulo Bulk Changes â€” Flujo principal Price', () => {
         });
       };
 
-      await aplicarBusquedaAsignacion();
+      await aplicarRangoFechasMesAsignacion();
+      await aplicarFiltroFechaUCAsignacion();
+      await aplicarBusquedaAsignacion({ aplicarRangoFechas: false });
 
-      console.log(`âœ… Prefijo ${orderReferenceCapturado} ingresado, filtro Todos seleccionado y bÃºsqueda actualizada`);
+      console.log(`âœ… Filtro UC aplicado. Prefijo ${orderReferenceCapturado} ingresado, filtro Todos seleccionado y bÃºsqueda actualizada`);
       await esperarCargaAsignacion();
       await tomarScreenshotPagina(comprasPage, 'reports/screenshots/16-betagr-asignacion-actualizada.png');
 
@@ -1017,18 +1025,13 @@ test.describe('MÃ³dulo Bulk Changes â€” Flujo principal Price', () => {
         JSON.stringify({ totalItems: totalItemsInicialAsignacion, sinOrdenes: sinOrdenesInicialAsignacion }, null, 2)
       );
 
-      if (totalItemsInicialAsignacion === 0 || sinOrdenesInicialAsignacion) {
-        await aplicarFiltroFechaUCAsignacion();
-        await aplicarBusquedaAsignacion();
-        await esperarCargaAsignacion();
-        await tomarScreenshotPagina(comprasPage, 'reports/screenshots/16-betagr-asignacion-filtro-uc.png');
-        const totalItemsFiltroUC = await obtenerTotalItemsAsignacion();
-        const sinOrdenesFiltroUC = await noHayOrdenesAsignacion();
-        fs.writeFileSync(
-          'reports/html/16-betagr-total-items-filtro-uc.json',
-          JSON.stringify({ totalItems: totalItemsFiltroUC, sinOrdenes: sinOrdenesFiltroUC }, null, 2)
-        );
-      }
+      await tomarScreenshotPagina(comprasPage, 'reports/screenshots/16-betagr-asignacion-filtro-uc.png');
+      const totalItemsFiltroUC = await obtenerTotalItemsAsignacion();
+      const sinOrdenesFiltroUC = await noHayOrdenesAsignacion();
+      fs.writeFileSync(
+        'reports/html/16-betagr-total-items-filtro-uc.json',
+        JSON.stringify({ totalItems: totalItemsFiltroUC, sinOrdenes: sinOrdenesFiltroUC }, null, 2)
+      );
 
       // Ejemplo de comparacion: FOB Price asignado en QU desde Bulk Changes "1.51" y Precio Unidad "151" coinciden porque ambos normalizan sus primeros 3 numeros a "151".
       const obtenerPrimerosTresNumeros = (valor: string) => {

@@ -160,7 +160,7 @@ Artefactos generados:
   - `xpath=/html/body/form/div[3]/div[1]/table/tbody/tr[1]/td/table/tbody/tr/td[1]/table/tbody/tr[1]/td[7]/div[2]/div[1]/div[1]/input`
 - Filtro Fecha:
   - se ubica el selector asociado al label visible `Fecha`
-  - si no hay ordenes despues de buscar por prefijo con `Todos`, se selecciona `UC`
+  - despues de aplicar el rango de fechas del mes actual, se selecciona siempre `UC`
   - despues de cambiar a `UC`, se ejecuta `Actualizar` nuevamente antes de validar `Precio Unidad`
 - Fecha desde calendario:
   - `xpath=/html/body/form/div[3]/div[1]/table/tbody/tr[1]/td/table/tbody/tr/td[1]/table/tbody/tr[3]/td[6]/img`
@@ -182,7 +182,7 @@ Artefactos generados:
 - Se extraen los primeros 3 numeros de cada candidato de `Precio Unidad`.
 - Se extraen los primeros 3 numeros del FOB Price asignado en QU desde el modulo Bulk Changes (`valorPriceAsignado`).
 - Se comparan solo esos 3 numeros.
-- Si la busqueda inicial en BETA GR no devuelve ordenes (`Total Items` igual a 0), se cambia el filtro `Fecha` a `UC`, se actualiza la grilla y se repite la lectura de candidatos.
+- En BETA GR, el filtro `Fecha` se cambia siempre a `UC` antes de leer los candidatos de `Precio Unidad`.
 - Ejemplo: FOB Price asignado en QU desde Bulk Changes `1.51` coincide con Precio Unidad `151` porque ambos valores normalizan sus primeros 3 numeros a `151`.
 - Si despues de quitar separadores quedan menos de 3 numeros, se completa con ceros a la derecha para comparar siempre una clave de 3 numeros.
 - Si no coincide, se refresca la busqueda y se espera 30 segundos antes del siguiente intento.
@@ -251,10 +251,10 @@ Artefactos generados:
 24. Iniciar sesion en BETA GR si la pantalla lo solicita.
 25. Navegar a Compras -> Asignacion de ordenes.
 26. Aplicar rango de fechas del mes actual.
-27. Ingresar el prefijo de la orden capturada.
-28. Seleccionar filtro Todos.
-29. Ejecutar Actualizar.
-30. Si no se encuentran ordenes despues de buscar por prefijo con el filtro `Todos`, cambiar el filtro `Fecha` a `UC` y ejecutar `Actualizar` nuevamente.
+27. Cambiar el filtro `Fecha` a `UC`.
+28. Ingresar el prefijo de la orden capturada.
+29. Seleccionar filtro Todos.
+30. Ejecutar Actualizar.
 31. Extraer candidatos visibles del campo `Precio Unidad`.
 32. Normalizar los candidatos eliminando puntos, comas, simbolos de moneda y caracteres no numericos.
 33. Extraer los primeros 3 numeros del `FOB Price` asignado en QU.
@@ -268,7 +268,7 @@ Artefactos generados:
 
 ### Resultado esperado
 
-El cambio masivo de Price se aplica correctamente en Bulk Changes, el valor queda visible como `FOB Price` en Order Entry y los primeros 3 numeros normalizados de `Precio Unidad` en BETA GR coinciden con el valor asignado desde QU. Si no hay ordenes visibles en GR con el filtro de fecha inicial, la prueba cambia `Fecha` a `UC` y repite la busqueda antes de validar el precio.
+El cambio masivo de Price se aplica correctamente en Bulk Changes, el valor queda visible como `FOB Price` en Order Entry y los primeros 3 numeros normalizados de `Precio Unidad` en BETA GR coinciden con el valor asignado desde QU. En GR, la prueba cambia siempre el filtro `Fecha` a `UC` despues de aplicar el rango de fechas del mes actual y antes de validar el precio.
 
 ### Evidencias del caso
 
@@ -291,7 +291,7 @@ El cambio masivo de Price se aplica correctamente en Bulk Changes, el valor qued
 - `reports/screenshots/14-betagr-compras.png`
 - `reports/screenshots/15-betagr-asignacion-ordenes.png`
 - `reports/screenshots/16-betagr-asignacion-actualizada.png`
-- `reports/screenshots/16-betagr-asignacion-filtro-uc.png`, si aplica
+- `reports/screenshots/16-betagr-asignacion-filtro-uc.png`
 - `reports/screenshots/16-betagr-asignacion-refresh-{intento}.png`
 - `reports/screenshots/17-betagr-precio-actualizado.png`
 - `reports/screenshots/18-betagr-precio-evidencia-gr.png`
@@ -305,6 +305,8 @@ C:\Users\DianaSPS\Documents\Pruebas Bulk Changes\Bulk-changes-Price_AAAAMMDD.doc
 ```
 
 Las imagenes incluidas en el Word deben conservarse completas. El generador debe normalizarlas usando escalado tipo `contain`, dejando margen blanco si la proporcion de la captura no coincide con el tamano uniforme.
+
+El documento Word debe incluir explicitamente las evidencias finales `17-betagr-precio-actualizado.png` y `18-betagr-precio-evidencia-gr.png`, donde se visualiza la comparacion de `Precio Unidad` en GR con el valor `FOB Price` asignado desde Bulk Changes.
 
 Tamano uniforme esperado:
 
@@ -357,7 +359,7 @@ Resultado:
 
 - El test usa frames de WebFlowers; los elementos del menu se buscan en `iframe#left_page1` y los modulos en `iframe#center_page`.
 - La validacion de Order Entry no depende del indice del input; compara cualquier input visible con el precio esperado.
-- Si BETA GR no encuentra ordenes al buscar por prefijo con el filtro `Todos`, se cambia el filtro `Fecha` a `UC` y se vuelve a actualizar antes de evaluar `Precio Unidad`.
+- En BETA GR, despues de aplicar el rango de fechas del mes actual, siempre se cambia el filtro `Fecha` a `UC` y se vuelve a actualizar antes de evaluar `Precio Unidad`.
 - La validacion de BETA GR depende del encabezado `Precio Unidad`; si el texto del encabezado cambia, actualizar la expresion `/precio\s*unidad:?/i`.
 - La bitacora de decisiones de la sesion esta en `tests/specs-fuente/modulo-bulkchanges/bitacora-2026-08-13.md`.
 - La prueba no usa Page Class por decision del requerimiento.
@@ -365,7 +367,7 @@ Resultado:
 - El cierre del navegador ocurre solo despues de que los primeros 3 numeros de `Precio Unidad` coinciden con los primeros 3 numeros del FOB Price asignado en QU desde Bulk Changes.
 - La evidencia final en GR debe mostrar el precio coincidente resaltado en verde exclusivamente dentro de la columna `Precio Unidad`.
 - El test no debe aceptar como evidencia visual valores coincidentes ubicados en otras columnas.
-- El documento Word debe incluir imagenes completas, sin recortes.
+- El documento Word debe incluir imagenes completas, sin recortes, y debe conservar las capturas finales de comparacion de precio en GR.
 
 ---
 

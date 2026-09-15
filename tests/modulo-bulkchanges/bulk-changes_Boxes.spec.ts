@@ -12,6 +12,7 @@ test.describe('Módulo Bulk Changes — Flujo principal', () => {
     // Variables para guardar datos entre pasos
     let orderReferenceCapturado = '';
     let orderReferenceCompletoCapturado = '';
+    let itemOrderReferenceCapturado = '';
     let valorBOXESAsignado = 0;
     const orderReferenceRegex = /[A-Z]{2}\d{4}(?:-\d+)?/;
     const extraerOrderReference = (texto: string) => texto.match(orderReferenceRegex)?.[0] ?? '';
@@ -217,8 +218,10 @@ test.describe('Módulo Bulk Changes — Flujo principal', () => {
 
       if (orderReferenceCompletoCapturado) {
         orderReferenceCapturado = orderReferenceCompletoCapturado.substring(0, 6);
+        itemOrderReferenceCapturado = orderReferenceCompletoCapturado.split('-')[1] ?? '';
         console.log(`📋 Order Reference de la fila seleccionada: ${orderReferenceCompletoCapturado}`);
         console.log(`📋 Prefijo de la fila seleccionada: ${orderReferenceCapturado}`);
+        console.log(`📋 Item de la fila seleccionada: ${itemOrderReferenceCapturado}`);
       }
       
       if (!orderReferenceCompletoCapturado) {
@@ -227,6 +230,7 @@ test.describe('Módulo Bulk Changes — Flujo principal', () => {
 
       expect(orderReferenceCompletoCapturado, 'Debe capturar el Order Reference completo de la fila seleccionada, ejemplo PB9919-001').toMatch(/^[A-Z]{2}\d{4}(?:-\d+)?$/);
       expect(orderReferenceCapturado, 'Debe capturar el prefijo del Order Reference, ejemplo PB9919').toMatch(/^[A-Z]{2}\d{4}$/);
+      expect(itemOrderReferenceCapturado, 'Debe capturar el item del Order Reference, ejemplo 001').toMatch(/^\d+$/);
       
       console.log(`CHECKBOX: ${Date.now() - t0}ms`);
       await tomarScreenshot('reports/screenshots/05-checkbox-selected.png');
@@ -540,49 +544,66 @@ test.describe('Módulo Bulk Changes — Flujo principal', () => {
         'Debe existir el prefijo de 6 caracteres de la orden capturada en Bulk Changes para buscarla en Order Entry'
       ).toMatch(/^[A-Z]{2}\d{4}$/);
 
-      try {
-        const searchInput = frameCenter.locator(orderEntrySearchXpath);
-        await searchInput.waitFor({ state: 'visible', timeout: 10000 });
-        await searchInput.fill(orderReferenceParaOrderEntry);
-        await searchInput.press('Enter');
-      } catch (error) {
-        const searchInput = page.locator(orderEntrySearchXpath);
-        await searchInput.waitFor({ state: 'visible', timeout: 10000 });
-        await searchInput.fill(orderReferenceParaOrderEntry);
-        await searchInput.press('Enter');
-      }
+      const buscarOrdenEnOrderEntry = async () => {
+        try {
+          const searchInput = frameCenter.locator(orderEntrySearchXpath);
+          await searchInput.waitFor({ state: 'visible', timeout: 10000 });
+          await searchInput.fill(orderReferenceParaOrderEntry);
+          await searchInput.press('Enter');
+        } catch (error) {
+          const searchInput = page.locator(orderEntrySearchXpath);
+          await searchInput.waitFor({ state: 'visible', timeout: 10000 });
+          await searchInput.fill(orderReferenceParaOrderEntry);
+          await searchInput.press('Enter');
+        }
+      };
+
+      await buscarOrdenEnOrderEntry();
 
       console.log(`✅ Prefijo ${orderReferenceParaOrderEntry} ingresado en Order Entry y búsqueda ejecutada con Enter`);
       await page.waitForTimeout(5000);
 
       const centerFrame = await page.locator('iframe#center_page').elementHandle().then((iframe) => iframe?.contentFrame());
       if (centerFrame) {
-        fs.writeFileSync('reports/html/12-order-entry.html', await centerFrame.content());
-        await tomarScreenshot('reports/screenshots/12-order-entry.png');
-        await tomarScreenshot('reports/screenshots/12-order-entry-frame.png');
+        const capturarInputsOrderEntry = async (sufijo = '') => {
+          fs.writeFileSync(`reports/html/12-order-entry${sufijo}.html`, await centerFrame.content());
+          await tomarScreenshot(`reports/screenshots/12-order-entry${sufijo}.png`);
+          await tomarScreenshot(`reports/screenshots/12-order-entry-frame${sufijo}.png`);
 
-        const inputsOrderEntry = await centerFrame.locator('input:visible').evaluateAll((inputs) =>
-          inputs.map((input, index) => {
-            const element = input as any;
-            const rect = element.getBoundingClientRect();
+          const inputsOrderEntry = await centerFrame.locator('input:visible').evaluateAll((inputs) =>
+            inputs.map((input, index) => {
+              const element = input as any;
+              const rect = element.getBoundingClientRect();
 
-            return {
-              index,
-              value: element.value.trim(),
-              id: element.id,
-              name: element.name,
-              title: element.title,
-              x: Math.round(rect.x),
-              y: Math.round(rect.y),
-              width: Math.round(rect.width),
-              height: Math.round(rect.height)
-            };
-          })
-        );
-        fs.writeFileSync('reports/html/12-order-entry-inputs.json', JSON.stringify(inputsOrderEntry, null, 2));
+              return {
+                index,
+                value: element.value.trim(),
+                id: element.id,
+                name: element.name,
+                title: element.title,
+                x: Math.round(rect.x),
+                y: Math.round(rect.y),
+                width: Math.round(rect.width),
+                height: Math.round(rect.height)
+              };
+            })
+          );
+          fs.writeFileSync(`reports/html/12-order-entry-inputs${sufijo}.json`, JSON.stringify(inputsOrderEntry, null, 2));
+          return inputsOrderEntry;
+        };
 
         const valorBoxesEsperado = valorBOXESAsignado.toString();
-        const valoresCoincidentes = inputsOrderEntry.filter((input) => input.value === valorBoxesEsperado);
+        let inputsOrderEntry = await capturarInputsOrderEntry();
+        let valoresCoincidentes = inputsOrderEntry.filter((input) => input.value === valorBoxesEsperado);
+
+        if (valoresCoincidentes.length === 0) {
+          console.log(`⏳ Valor BOXES ${valorBoxesEsperado} no visible en Order Entry. Esperando hasta 1 minuto y repitiendo la consulta...`);
+          await page.waitForTimeout(60000);
+          await buscarOrdenEnOrderEntry();
+          await page.waitForTimeout(5000);
+          inputsOrderEntry = await capturarInputsOrderEntry('-retry');
+          valoresCoincidentes = inputsOrderEntry.filter((input) => input.value === valorBoxesEsperado);
+        }
 
         expect(
           valoresCoincidentes.length,
@@ -600,8 +621,11 @@ test.describe('Módulo Bulk Changes — Flujo principal', () => {
     await test.step('Abrir BETA GR y navegar a Compras -> Asignacion de ordenes', async () => {
       const t0 = Date.now();
       const comprasPage = await page.context().newPage();
+      await comprasPage.setViewportSize({ width: 1920, height: 1200 });
+      await comprasPage.bringToFront();
 
       await comprasPage.goto('https://betagr.ghtcorptest.com/', { waitUntil: 'domcontentloaded' });
+      await comprasPage.bringToFront();
       await comprasPage.waitForTimeout(3000);
       await tomarScreenshotPagina(comprasPage, 'reports/screenshots/13-betagr-inicio.png');
 
@@ -613,6 +637,7 @@ test.describe('Módulo Bulk Changes — Flujo principal', () => {
         await waitForAppReady(comprasPage, 30000);
         await clickResilient(comprasPage.locator('#btnSigIn'));
         await waitForAppReady(comprasPage, 30000);
+        await comprasPage.bringToFront();
         console.log('✅ Login realizado en BETA GR');
       }
 
@@ -658,6 +683,7 @@ test.describe('Módulo Bulk Changes — Flujo principal', () => {
         frameMenu.locator(asignacionOrdenesXpath),
       ]);
       await comprasPage.waitForTimeout(8000);
+      await comprasPage.bringToFront();
       console.log('✅ Click en Asignación de ordenes');
       await tomarScreenshotPagina(comprasPage, 'reports/screenshots/15-betagr-asignacion-ordenes.png');
 
@@ -738,7 +764,7 @@ test.describe('Módulo Bulk Changes — Flujo principal', () => {
           return true;
         });
 
-        expect(cambioRealizado, 'Debe poder cambiar el filtro Fecha a UC cuando no se encuentran ordenes').toBeTruthy();
+        expect(cambioRealizado, 'Debe poder cambiar el filtro Fecha a UC antes de validar TOTAL').toBeTruthy();
       };
 
       const aplicarFiltroFechaUCAsignacion = async () => {
@@ -753,7 +779,7 @@ test.describe('Módulo Bulk Changes — Flujo principal', () => {
         }
 
         filtroFechaUCActivado = true;
-        console.log('✅ No se encontraron ordenes con el filtro de fecha actual. Filtro Fecha cambiado a UC.');
+        console.log('✅ Filtro Fecha cambiado a UC antes de validar TOTAL en GR.');
       };
 
       const aplicarRangoFechasMesAsignacion = async () => {
@@ -776,12 +802,14 @@ test.describe('Módulo Bulk Changes — Flujo principal', () => {
         if (usarFrame) {
           await asignacionFrame.locator(prefijoInputXpath).fill(orderReferenceCapturado);
           await aplicarRangoFechasMesAsignacion();
+          await aplicarFiltroFechaUCAsignacion();
           await asignacionFrame.locator(filtroTodosXpath).check({ timeout: 10000 });
           await asignacionFrame.locator(actualizarXpath).click({ timeout: 10000 });
         } else {
           await comprasPage.locator(prefijoInputXpath).waitFor({ state: 'visible', timeout: 20000 });
           await comprasPage.locator(prefijoInputXpath).fill(orderReferenceCapturado);
           await aplicarRangoFechasMesAsignacion();
+          await aplicarFiltroFechaUCAsignacion();
           await comprasPage.locator(filtroTodosXpath).check({ timeout: 10000 });
           await comprasPage.locator(actualizarXpath).click({ timeout: 10000 });
         }
@@ -790,107 +818,413 @@ test.describe('Módulo Bulk Changes — Flujo principal', () => {
         await esperarCargaAsignacion();
       };
 
-      const obtenerValoresTotalAsignacion = async () => {
+      type ResultadoTotalAsignacion = {
+        encontrado: boolean;
+        pagina: string;
+        orden: string;
+        item: string;
+        total: string;
+        filasVisibles: Array<{ orden: string; item: string; total: string }>;
+        paginasDisponibles: string[];
+      };
+
+      const obtenerFrameAsignacion = async () =>
+        comprasPage.locator('iframe#center_page').elementHandle().then((iframe) => iframe?.contentFrame());
+
+      const selectorElementosAsignacion = 'td:visible, th:visible, span:visible, div:visible, input:visible, select:visible';
+
+      const obtenerPaginasDisponiblesAsignacion = async () => {
+        const leerPaginas = () => {
+          const normalizar = (valor: string) => String(valor || '').trim().replace(/\s+/g, ' ');
+          const normalizarSinAcentos = (valor: string) => normalizar(valor)
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .toUpperCase();
+          const labelsPagina = Array.from(document.querySelectorAll('td, th, label, span, div')) as HTMLElement[];
+          const labelPagina = labelsPagina
+            .map((element) => ({ element, rect: element.getBoundingClientRect(), text: normalizarSinAcentos(element.innerText || element.textContent || '') }))
+            .filter((item) => item.rect.width > 0 && item.rect.height > 0)
+            .find((item) => /^PAGINA:?$/.test(item.text));
+          const selects = Array.from(document.querySelectorAll('select')) as HTMLSelectElement[];
+          const selectPagina = labelPagina
+            ? selects
+              .map((select) => ({ select, rect: select.getBoundingClientRect() }))
+              .filter((item) => item.rect.width > 0 && item.rect.height > 0)
+              .filter((item) => item.rect.left > labelPagina.rect.right && Math.abs(item.rect.top - labelPagina.rect.top) < 24)
+              .sort((a, b) => a.rect.left - b.rect.left)[0]?.select
+            : undefined;
+          return selectPagina
+            ? Array.from(selectPagina.options).map((option) => normalizar(option.textContent || option.value || '')).filter(Boolean)
+            : ['1'];
+        };
+
         if (usarFrame) {
-          const centerFrame = await comprasPage.locator('iframe#center_page').elementHandle().then((iframe) => iframe?.contentFrame());
-          if (!centerFrame) return [];
+          const centerFrame = await obtenerFrameAsignacion();
+          if (!centerFrame) return ['1'];
+          return centerFrame.locator('body').evaluate(leerPaginas);
+        }
 
-          return centerFrame.locator('td:visible, th:visible, span:visible, div:visible, input:visible').evaluateAll((elements) => {
-            const items = elements.map((element) => {
-              const htmlElement = element as any;
-              const input = element as any;
+        return comprasPage.locator('body').evaluate(leerPaginas);
+      };
+
+      const seleccionarPaginaAsignacion = async (pagina: string) => {
+        const xpathSelectorPagina = 'xpath=(//*[normalize-space()="Página" or normalize-space()="Pagina"]/following::select)[1]';
+
+        const seleccionarConPlaywright = async (scope: any) => {
+          const selectPagina = scope.locator(xpathSelectorPagina).first();
+          if (!await selectPagina.isVisible({ timeout: 3000 }).catch(() => false)) {
+            return false;
+          }
+
+          const paginaActual = await selectPagina.evaluate((selectElement: HTMLSelectElement) =>
+            selectElement.options[selectElement.selectedIndex]?.textContent?.trim() || selectElement.value
+          );
+          if (paginaActual === pagina) {
+            return true;
+          }
+
+          await selectPagina.scrollIntoViewIfNeeded().catch(() => undefined);
+          await comprasPage.waitForTimeout(1500);
+          await selectPagina.selectOption({ label: pagina }).catch(async () => {
+            await selectPagina.selectOption({ value: pagina });
+          });
+          await comprasPage.waitForTimeout(4000);
+
+          const paginaSeleccionada = await selectPagina.evaluate((selectElement: HTMLSelectElement) =>
+            selectElement.options[selectElement.selectedIndex]?.textContent?.trim() || selectElement.value
+          );
+          return paginaSeleccionada === pagina;
+        };
+
+        if (usarFrame) {
+          const centerFrame = await obtenerFrameAsignacion();
+          if (centerFrame && await seleccionarConPlaywright(centerFrame)) {
+            return true;
+          }
+        } else if (await seleccionarConPlaywright(comprasPage)) {
+          return true;
+        }
+
+        const seleccionarPagina = (paginaObjetivo: string) => {
+          const normalizar = (valor: string) => String(valor || '').trim().replace(/\s+/g, ' ');
+          const normalizarSinAcentos = (valor: string) => normalizar(valor)
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .toUpperCase();
+          const labelsPagina = Array.from(document.querySelectorAll('td, th, label, span, div')) as HTMLElement[];
+          const labelPagina = labelsPagina
+            .map((element) => ({ element, rect: element.getBoundingClientRect(), text: normalizarSinAcentos(element.innerText || element.textContent || '') }))
+            .filter((item) => item.rect.width > 0 && item.rect.height > 0)
+            .find((item) => /^PAGINA:?$/.test(item.text));
+          const selects = Array.from(document.querySelectorAll('select')) as HTMLSelectElement[];
+          const selectPagina = labelPagina
+            ? selects
+              .map((select) => ({ select, rect: select.getBoundingClientRect() }))
+              .filter((item) => item.rect.width > 0 && item.rect.height > 0)
+              .filter((item) => item.rect.left > labelPagina.rect.right && Math.abs(item.rect.top - labelPagina.rect.top) < 24)
+              .sort((a, b) => a.rect.left - b.rect.left)[0]?.select
+            : undefined;
+          if (!selectPagina) return false;
+
+          const opciones = Array.from(selectPagina.options);
+          const paginaActual = Number(selectPagina.options[selectPagina.selectedIndex]?.textContent || selectPagina.value || '1');
+          const paginaDestino = Number(paginaObjetivo);
+          if (paginaActual === paginaDestino) return true;
+
+          const rectSelect = selectPagina.getBoundingClientRect();
+          const controlesPagina = Array.from(document.querySelectorAll('a, button, input, img, span'))
+            .map((element) => {
+              const htmlElement = element as HTMLElement;
               const rect = htmlElement.getBoundingClientRect();
-              const value = input.value?.trim();
-              const text = htmlElement.textContent?.trim();
+              return { element: htmlElement, rect, text: normalizar(htmlElement.innerText || htmlElement.getAttribute('title') || htmlElement.getAttribute('alt') || htmlElement.getAttribute('src') || '') };
+            })
+            .filter((item) => item.rect.width > 0 && item.rect.height > 0)
+            .filter((item) => Math.abs(item.rect.top - rectSelect.top) < 24);
+          const controlSiguiente = controlesPagina
+            .filter((item) => item.rect.left > rectSelect.right)
+            .sort((a, b) => a.rect.left - b.rect.left)[0];
+          const controlAnterior = controlesPagina
+            .filter((item) => item.rect.right < rectSelect.left)
+            .sort((a, b) => b.rect.right - a.rect.right)[0];
+          const control = paginaDestino > paginaActual ? controlSiguiente : controlAnterior;
+          if (control) {
+            control.element.click();
+            return true;
+          }
 
+          const opcion = opciones.find((option) =>
+            normalizar(option.value) === paginaObjetivo || normalizar(option.textContent || '') === paginaObjetivo
+          ) || opciones[Number(paginaObjetivo) - 1];
+          if (!opcion) return false;
+
+          selectPagina.value = opcion.value;
+          selectPagina.dispatchEvent(new Event('input', { bubbles: true }));
+          selectPagina.dispatchEvent(new Event('change', { bubbles: true }));
+          selectPagina.dispatchEvent(new Event('blur', { bubbles: true }));
+          return true;
+        };
+
+        if (usarFrame) {
+          const centerFrame = await obtenerFrameAsignacion();
+          if (!centerFrame) return false;
+          return centerFrame.locator('body').evaluate(seleccionarPagina, pagina);
+        }
+
+        return comprasPage.locator('body').evaluate(seleccionarPagina, pagina);
+      };
+
+      const obtenerTotalItemAsignacion = async (): Promise<ResultadoTotalAsignacion> => {
+        const extraerTotalItem = (
+          elements: Element[],
+          datos: { orderReference: string; itemReference: string; paginasDisponibles: string[] }
+        ) => {
+          const normalizar = (valor: string) => String(valor || '')
+            .trim()
+            .replace(/\s+/g, ' ')
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .toUpperCase();
+          const obtenerValor = (element: Element) => {
+            const htmlElement = element as HTMLElement;
+            const input = element as HTMLInputElement;
+            return (
+              input.value ||
+              htmlElement.getAttribute('value') ||
+              htmlElement.innerText ||
+              htmlElement.textContent ||
+              htmlElement.title ||
+              htmlElement.getAttribute('aria-label') ||
+              ''
+            ).trim();
+          };
+          const seCruzaHorizontalmente = (celda: { x: number; width: number }, header: { x: number; width: number }) =>
+            celda.x < header.x + header.width && celda.x + celda.width > header.x;
+          const valorItemCoincide = (valor: string) => {
+            const normalizado = normalizar(valor);
+            const itemNormalizado = normalizar(datos.itemReference);
+            return normalizado === itemNormalizado || String(Number(normalizado)) === String(Number(itemNormalizado));
+          };
+
+          const visibles = elements
+            .map((element) => {
+              const htmlElement = element as HTMLElement;
+              const rect = htmlElement.getBoundingClientRect();
+              const value = obtenerValor(element);
+              const select = element as HTMLSelectElement;
+              const selectedOption = select.tagName === 'SELECT'
+                ? (select.options[select.selectedIndex]?.value || select.options[select.selectedIndex]?.text || '')
+                : '';
               return {
-                value: value || text || '',
+                element: htmlElement,
+                value,
+                normalized: normalizar(value || selectedOption),
                 x: rect.x,
                 y: rect.y,
                 width: rect.width,
-                height: rect.height
+                height: rect.height,
               };
-            }).filter((item) => item.value);
+            })
+            .filter((item) => item.width > 0 && item.height > 0);
 
-            const totalHeaders = items.filter((item) => /^total:?$/i.test(item.value));
+          const paginaActual = visibles.find((item) =>
+            item.element.tagName === 'SELECT'
+            && Array.from((item.element as HTMLSelectElement).options).every((option) => /^\d+$/.test((option.value || option.textContent || '').trim()))
+          )?.normalized || '';
 
-            return totalHeaders.flatMap((header) =>
-              items
-                .filter((item) => item.y > header.y + header.height)
-                .filter((item) => item.x < header.x + header.width && item.x + item.width > header.x)
-                .map((item) => item.value)
-                .filter((value) => /^\d+(?:\.\d+)?$/.test(value))
-            );
-          });
+          const buscarHeaderGrilla = (regex: RegExp) => visibles
+            .filter((item) => regex.test(item.normalized))
+            .sort((a, b) => b.y - a.y)[0];
+          const headers = {
+            orden: buscarHeaderGrilla(/ORDEN/),
+            item: buscarHeaderGrilla(/\bITEM\b/),
+            total: buscarHeaderGrilla(/\bTOTAL\b/),
+          };
+
+          let filas = Array.from(document.querySelectorAll('tr, .ag-row'))
+            .map((fila) => {
+              const filaHtml = fila as HTMLElement;
+              const rectFila = filaHtml.getBoundingClientRect();
+              const celdas = Array.from(fila.children)
+                .filter((child) => child.matches('td, th, [colid], .ag-cell'))
+                .map((child) => {
+                  const childHtml = child as HTMLElement;
+                  const childRect = childHtml.getBoundingClientRect();
+                  const value = obtenerValor(child);
+                  return {
+                    value,
+                    normalized: normalizar(value),
+                    x: childRect.x,
+                    y: childRect.y,
+                    width: childRect.width,
+                    height: childRect.height,
+                    colid: child.getAttribute('colid') || '',
+                  };
+                })
+                .filter((celda) => celda.width > 0 && celda.height > 0);
+
+              const obtenerCeldaPorHeader = (header: { x: number; width: number } | undefined, regexColid: RegExp) =>
+                celdas.find((celda) => regexColid.test(celda.colid))
+                || (header ? celdas.find((celda) => seCruzaHorizontalmente(celda, header)) : undefined);
+
+              const celdaOrden = obtenerCeldaPorHeader(headers.orden, /order/i);
+              const celdaItem = obtenerCeldaPorHeader(headers.item, /^item$/i);
+              const celdaTotal = obtenerCeldaPorHeader(headers.total, /total/i);
+
+              return {
+                y: rectFila.y,
+                orden: celdaOrden?.value || '',
+                item: celdaItem?.value || '',
+                total: celdaTotal?.value || '',
+                ordenNormalizada: normalizar(celdaOrden?.value || ''),
+                itemNormalizado: normalizar(celdaItem?.value || ''),
+              };
+            })
+            .filter((fila) => fila.orden || fila.item || fila.total);
+
+          if (filas.every((fila) => fila.ordenNormalizada !== normalizar(datos.orderReference)) && headers.orden && headers.item && headers.total) {
+            const celdasDatos = visibles
+              .filter((item) => item.y > Math.max(headers.orden!.y, headers.item!.y, headers.total!.y) + Math.max(headers.orden!.height, headers.item!.height, headers.total!.height) - 2)
+              .filter((item) => item.normalized && !/^ORDEN#?:?$|^ITEM:?$|^TOTAL:?$/.test(item.normalized));
+            const filasPorY = new Map<number, typeof celdasDatos>();
+
+            for (const celda of celdasDatos) {
+              const llaveExistente = Array.from(filasPorY.keys()).find((y) => Math.abs(y - celda.y) <= 8);
+              const llave = llaveExistente ?? Math.round(celda.y);
+              filasPorY.set(llave, [...(filasPorY.get(llave) ?? []), celda]);
+            }
+
+            filas = Array.from(filasPorY.values()).map((celdas) => {
+              const celdaOrden = celdas.find((celda) => seCruzaHorizontalmente(celda, headers.orden!));
+              const celdaItem = celdas.find((celda) => seCruzaHorizontalmente(celda, headers.item!));
+              const celdaTotal = celdas.find((celda) => seCruzaHorizontalmente(celda, headers.total!));
+              return {
+                y: Math.min(...celdas.map((celda) => celda.y)),
+                orden: celdaOrden?.value || '',
+                item: celdaItem?.value || '',
+                total: celdaTotal?.value || '',
+                ordenNormalizada: normalizar(celdaOrden?.value || ''),
+                itemNormalizado: normalizar(celdaItem?.value || ''),
+              };
+            }).filter((fila) => fila.orden || fila.item || fila.total);
+          }
+
+          const filaObjetivo = filas.find((fila) =>
+            fila.ordenNormalizada === normalizar(datos.orderReference) && valorItemCoincide(fila.itemNormalizado)
+          );
+
+          const filasVisibles = filas
+            .filter((fila) => fila.ordenNormalizada === normalizar(datos.orderReference))
+            .map((fila) => ({
+              orden: fila.orden,
+              item: fila.item,
+              total: fila.total,
+            }));
+
+          if (!filaObjetivo) {
+            return {
+              encontrado: false,
+              pagina: paginaActual,
+              orden: datos.orderReference,
+              item: datos.itemReference,
+              total: '',
+              filasVisibles,
+              paginasDisponibles: datos.paginasDisponibles,
+            };
+          }
+
+          return {
+            encontrado: true,
+            pagina: paginaActual,
+            orden: filaObjetivo.orden,
+            item: filaObjetivo.item,
+            total: filaObjetivo.total,
+            filasVisibles,
+            paginasDisponibles: datos.paginasDisponibles,
+          };
+        };
+
+        const paginasDisponibles = await obtenerPaginasDisponiblesAsignacion();
+        const args = {
+          orderReference: orderReferenceCapturado,
+          itemReference: itemOrderReferenceCapturado,
+          paginasDisponibles,
+        };
+
+        if (usarFrame) {
+          const centerFrame = await obtenerFrameAsignacion();
+          if (!centerFrame) {
+            return { encontrado: false, pagina: '', orden: orderReferenceCapturado, item: itemOrderReferenceCapturado, total: '', filasVisibles: [], paginasDisponibles };
+          }
+          return centerFrame.locator(selectorElementosAsignacion).evaluateAll(extraerTotalItem, args);
         }
 
-        return comprasPage.locator('td:visible, th:visible, span:visible, div:visible, input:visible').evaluateAll((elements) => {
-          const items = elements.map((element) => {
-            const htmlElement = element as any;
-            const input = element as any;
-            const rect = htmlElement.getBoundingClientRect();
-            const value = input.value?.trim();
-            const text = htmlElement.textContent?.trim();
+        return comprasPage.locator(selectorElementosAsignacion).evaluateAll(extraerTotalItem, args);
+      };
 
-            return {
-              value: value || text || '',
-              x: rect.x,
-              y: rect.y,
-              width: rect.width,
-              height: rect.height
-            };
-          }).filter((item) => item.value);
+      const buscarTotalItemEnPaginasAsignacion = async (intento: number) => {
+        const paginasDisponibles = await obtenerPaginasDisponiblesAsignacion();
+        const paginas = paginasDisponibles.length > 0 ? paginasDisponibles : ['1'];
+        let ultimoResultado: ResultadoTotalAsignacion | null = null;
 
-          const totalHeaders = items.filter((item) => /^total:?$/i.test(item.value));
+        for (const [indicePagina, paginaAsignacion] of paginas.entries()) {
+          if (indicePagina > 0) {
+            await comprasPage.waitForTimeout(2500);
+            const paginaSeleccionada = await seleccionarPaginaAsignacion(paginaAsignacion);
+            expect(paginaSeleccionada, `Debe poder cambiar a la pagina ${paginaAsignacion} en Asignacion de ordenes`).toBeTruthy();
+            await comprasPage.waitForTimeout(5000);
+            await esperarCargaAsignacion();
+          }
 
-          return totalHeaders.flatMap((header) =>
-            items
-              .filter((item) => item.y > header.y + header.height)
-              .filter((item) => item.x < header.x + header.width && item.x + item.width > header.x)
-              .map((item) => item.value)
-              .filter((value) => /^\d+(?:\.\d+)?$/.test(value))
+          const resultado = await obtenerTotalItemAsignacion();
+          ultimoResultado = resultado;
+          fs.writeFileSync(
+            `reports/html/16-betagr-total-item-${orderReferenceCapturado}-${itemOrderReferenceCapturado}-intento-${intento}-pagina-${paginaAsignacion}.json`,
+            JSON.stringify(resultado, null, 2)
           );
-        });
+
+          if (resultado.encontrado) {
+            await tomarScreenshotPagina(comprasPage, `reports/screenshots/16-betagr-asignacion-item-${itemOrderReferenceCapturado}-pagina-${paginaAsignacion}.png`);
+            return resultado;
+          }
+        }
+
+        return ultimoResultado ?? {
+          encontrado: false,
+          pagina: '',
+          orden: orderReferenceCapturado,
+          item: itemOrderReferenceCapturado,
+          total: '',
+          filasVisibles: [],
+          paginasDisponibles: paginas,
+        };
       };
 
       await aplicarBusquedaAsignacion();
 
-      console.log(`✅ Prefijo ${orderReferenceCapturado} ingresado, filtro Todos seleccionado y búsqueda actualizada`);
+      console.log(`✅ Prefijo ${orderReferenceCapturado} ingresado, filtro Fecha UC y filtro Todos seleccionados, búsqueda actualizada`);
       await esperarCargaAsignacion();
       await tomarScreenshotPagina(comprasPage, 'reports/screenshots/16-betagr-asignacion-actualizada.png');
+      await tomarScreenshotPagina(comprasPage, 'reports/screenshots/16-betagr-asignacion-filtro-uc.png');
 
       const valorBoxesEsperado = valorBOXESAsignado.toString();
       let valorBoxesVisible = false;
       const maxIntentosAsignacion = 5;
-      let valoresInicialesTotalAsignacion = await obtenerValoresTotalAsignacion();
-
-      if (valoresInicialesTotalAsignacion.length === 0) {
-        fs.writeFileSync(
-          'reports/html/16-betagr-total-candidatos-filtro-fecha-original.json',
-          JSON.stringify(valoresInicialesTotalAsignacion, null, 2)
-        );
-        await aplicarFiltroFechaUCAsignacion();
-        await aplicarBusquedaAsignacion();
-        await esperarCargaAsignacion();
-        await tomarScreenshotPagina(comprasPage, 'reports/screenshots/16-betagr-asignacion-filtro-uc.png');
-        valoresInicialesTotalAsignacion = await obtenerValoresTotalAsignacion();
-      }
 
       for (let intento = 1; intento <= maxIntentosAsignacion; intento++) {
-        const valoresTotalAsignacion = intento === 1 ? valoresInicialesTotalAsignacion : await obtenerValoresTotalAsignacion();
+        const resultadoTotalAsignacion = await buscarTotalItemEnPaginasAsignacion(intento);
         fs.writeFileSync(
           `reports/html/16-betagr-total-candidatos-intento-${intento}.json`,
-          JSON.stringify(valoresTotalAsignacion, null, 2)
+          JSON.stringify(resultadoTotalAsignacion, null, 2)
         );
-        valorBoxesVisible = valoresTotalAsignacion.some((valor) => valor === valorBoxesEsperado);
+        valorBoxesVisible = resultadoTotalAsignacion.encontrado && resultadoTotalAsignacion.total === valorBoxesEsperado;
 
         if (valorBoxesVisible) {
-          console.log(`✅ SUCCESS: Valor BOXES ${valorBoxesEsperado} coincide con el campo TOTAL en Asignación de ordenes para ${orderReferenceCapturado}`);
+          console.log(`✅ SUCCESS: Valor BOXES ${valorBoxesEsperado} coincide con TOTAL en Asignación de ordenes para ${orderReferenceCapturado}-${itemOrderReferenceCapturado}, pagina ${resultadoTotalAsignacion.pagina}`);
           break;
         }
 
         if (intento < maxIntentosAsignacion) {
-          console.log(`⏳ Valor BOXES ${valorBoxesEsperado} no coincide con TOTAL en Asignación de ordenes. Refrescando intento ${intento} de ${maxIntentosAsignacion - 1}...`);
+          console.log(`⏳ Valor BOXES ${valorBoxesEsperado} no coincide con TOTAL para ${orderReferenceCapturado}-${itemOrderReferenceCapturado}. Refrescando intento ${intento} de ${maxIntentosAsignacion - 1}...`);
           await aplicarBusquedaAsignacion();
           await comprasPage.waitForTimeout(30000);
           await esperarCargaAsignacion();
@@ -900,7 +1234,7 @@ test.describe('Módulo Bulk Changes — Flujo principal', () => {
 
       expect(
         valorBoxesVisible,
-        `El campo TOTAL de Asignación de ordenes debe coincidir con el valor BOXES ${valorBoxesEsperado} para el prefijo ${orderReferenceCapturado}`
+        `El campo TOTAL de Asignación de ordenes debe coincidir con el valor BOXES ${valorBoxesEsperado} para ${orderReferenceCapturado}-${itemOrderReferenceCapturado}`
       ).toBeTruthy();
 
       await comprasPage.waitForTimeout(1000);
