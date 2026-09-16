@@ -33,6 +33,18 @@ export class AuthTasks {
   }
 
   /**
+   * Ejecuta login completo navegando primero a una URL explicita.
+   * Util para flujos que requieren normalizar la URL del ambiente antes de autenticar.
+   * @param url - URL completa a la que navegar
+   * @param usuario - Nombre de usuario
+   * @param password - Contrasena
+   */
+  async loginEnUrl(url: string, usuario: string, password: string): Promise<void> {
+    await this.loginPage.navegarA(url);
+    await this.loginPage.login(usuario, password);
+  }
+
+  /**
    * Ejecuta el flujo completo de logout
    */
   async logout(): Promise<void> {
