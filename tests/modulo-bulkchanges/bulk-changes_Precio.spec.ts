@@ -12,6 +12,7 @@ test.describe('MÃ³dulo Bulk Changes â€” Flujo principal Price', () => {
     // Variables para guardar datos entre pasos
     let orderReferenceCapturado = '';
     let orderReferenceCompletoCapturado = '';
+    let itemOrderReferenceCapturado = '';
     let valorPriceAsignado = '';
     const orderReferenceRegex = /[A-Z]{2}\d{4}(?:-\d+)?/;
     const extraerOrderReference = (texto: string) => texto.match(orderReferenceRegex)?.[0] ?? '';
@@ -217,8 +218,10 @@ test.describe('MÃ³dulo Bulk Changes â€” Flujo principal Price', () => {
 
       if (orderReferenceCompletoCapturado) {
         orderReferenceCapturado = orderReferenceCompletoCapturado.substring(0, 6);
+        itemOrderReferenceCapturado = orderReferenceCompletoCapturado.split('-')[1] ?? '';
         console.log(`ðŸ“‹ Order Reference de la fila seleccionada: ${orderReferenceCompletoCapturado}`);
         console.log(`ðŸ“‹ Prefijo de la fila seleccionada: ${orderReferenceCapturado}`);
+        console.log(`ðŸ“‹ Item de la fila seleccionada: ${itemOrderReferenceCapturado}`);
       }
       
       if (!orderReferenceCompletoCapturado) {
@@ -227,6 +230,7 @@ test.describe('MÃ³dulo Bulk Changes â€” Flujo principal Price', () => {
 
       expect(orderReferenceCompletoCapturado, 'Debe capturar el Order Reference completo de la fila seleccionada, ejemplo PB9919-001').toMatch(/^[A-Z]{2}\d{4}(?:-\d+)?$/);
       expect(orderReferenceCapturado, 'Debe capturar el prefijo del Order Reference, ejemplo PB9919').toMatch(/^[A-Z]{2}\d{4}$/);
+      expect(itemOrderReferenceCapturado, 'Debe capturar el item del Order Reference, ejemplo 001').toMatch(/^\d+$/);
       
       console.log(`CHECKBOX: ${Date.now() - t0}ms`);
       await tomarScreenshot('reports/screenshots/05-checkbox-selected.png');
@@ -897,117 +901,547 @@ test.describe('MÃ³dulo Bulk Changes â€” Flujo principal Price', () => {
         return leerSinRegistros(texto);
       };
 
-      const obtenerValoresPrecioUnidadAsignacion = async () => {
+      type ResultadoPrecioUnidadAsignacion = {
+        encontrado: boolean;
+        pagina: string;
+        orden: string;
+        item: string;
+        precioUnidad: string;
+        filasVisibles: Array<{ orden: string; item: string; precioUnidad: string }>;
+        paginasDisponibles: string[];
+      };
+
+      const obtenerFrameAsignacion = async () =>
+        comprasPage.locator('iframe#center_page').elementHandle().then((iframe) => iframe?.contentFrame());
+
+      const selectorElementosAsignacion = 'td:visible, th:visible, span:visible, div:visible, input:visible, select:visible';
+
+      const obtenerPaginasDisponiblesAsignacion = async () => {
+        const leerPaginas = () => {
+          const normalizar = (valor: string) => String(valor || '').trim().replace(/\s+/g, ' ');
+          const normalizarSinAcentos = (valor: string) => normalizar(valor)
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .toUpperCase();
+          const labelsPagina = Array.from(document.querySelectorAll('td, th, label, span, div')) as HTMLElement[];
+          const labelPagina = labelsPagina
+            .map((element) => ({ element, rect: element.getBoundingClientRect(), text: normalizarSinAcentos(element.innerText || element.textContent || '') }))
+            .filter((item) => item.rect.width > 0 && item.rect.height > 0)
+            .find((item) => /^PAGINA:?$/.test(item.text));
+          const selects = Array.from(document.querySelectorAll('select')) as HTMLSelectElement[];
+          const selectPagina = labelPagina
+            ? selects
+              .map((select) => ({ select, rect: select.getBoundingClientRect() }))
+              .filter((item) => item.rect.width > 0 && item.rect.height > 0)
+              .filter((item) => item.rect.left > labelPagina.rect.right && Math.abs(item.rect.top - labelPagina.rect.top) < 24)
+              .sort((a, b) => a.rect.left - b.rect.left)[0]?.select
+            : undefined;
+          return selectPagina
+            ? Array.from(selectPagina.options).map((option) => normalizar(option.textContent || option.value || '')).filter(Boolean)
+            : ['1'];
+        };
+
         if (usarFrame) {
-          const centerFrame = await comprasPage.locator('iframe#center_page').elementHandle().then((iframe) => iframe?.contentFrame());
-          if (!centerFrame) return [];
+          const centerFrame = await obtenerFrameAsignacion();
+          if (!centerFrame) return ['1'];
+          return centerFrame.locator('body').evaluate(leerPaginas);
+        }
 
-          return centerFrame.locator('td:visible, th:visible, span:visible, div:visible, input:visible').evaluateAll((elements) => {
-            const extraerNumeros = (valor: string) => valor.match(/\$?\d+(?:[.,]\d+)?/g) ?? [];
-            const agregar = (destino: string[], valor: unknown) => {
-              const texto = String(valor ?? '').trim();
-              if (!texto) return;
-              destino.push(texto);
-              destino.push(...extraerNumeros(texto));
-            };
-            const items = elements.map((element) => {
-              const htmlElement = element as any;
-              const input = element as any;
+        return comprasPage.locator('body').evaluate(leerPaginas);
+      };
+
+      const seleccionarPaginaAsignacion = async (pagina: string) => {
+        const xpathSelectorPagina = 'xpath=(//*[normalize-space()="PÃ¡gina" or normalize-space()="Pagina"]/following::select)[1]';
+
+        const seleccionarConPlaywright = async (scope: any) => {
+          const selectPagina = scope.locator(xpathSelectorPagina).first();
+          if (!await selectPagina.isVisible({ timeout: 3000 }).catch(() => false)) {
+            return false;
+          }
+
+          const paginaActual = await selectPagina.evaluate((selectElement: HTMLSelectElement) =>
+            selectElement.options[selectElement.selectedIndex]?.textContent?.trim() || selectElement.value
+          );
+          if (paginaActual === pagina) {
+            return true;
+          }
+
+          await selectPagina.scrollIntoViewIfNeeded().catch(() => undefined);
+          const leerPaginaActual = async () => selectPagina.evaluate((selectElement: HTMLSelectElement) =>
+            selectElement.options[selectElement.selectedIndex]?.textContent?.trim() || selectElement.value
+          ).catch(() => '');
+          const esperarPaginaObjetivo = async () => {
+            for (let intentoEspera = 1; intentoEspera <= 12; intentoEspera++) {
+              await comprasPage.waitForTimeout(2000);
+              const paginaSeleccionada = await leerPaginaActual();
+              if (paginaSeleccionada === pagina) {
+                return true;
+              }
+            }
+            return false;
+          };
+          const clickControlPagina = async () => selectPagina.evaluate((selectElement: HTMLSelectElement, paginaObjetivo: string) => {
+            const normalizar = (valor: string) => String(valor || '').trim().replace(/\s+/g, ' ');
+            const paginaActualNumero = Number(selectElement.options[selectElement.selectedIndex]?.textContent || selectElement.value || '1');
+            const paginaDestinoNumero = Number(paginaObjetivo);
+            if (!Number.isFinite(paginaActualNumero) || !Number.isFinite(paginaDestinoNumero) || paginaActualNumero === paginaDestinoNumero) {
+              return false;
+            }
+
+            const rectSelect = selectElement.getBoundingClientRect();
+            const controlesPagina = Array.from(document.querySelectorAll('a, button, input, img, span'))
+              .map((element) => {
+                const htmlElement = element as HTMLElement;
+                const rect = htmlElement.getBoundingClientRect();
+                return { element: htmlElement, rect, text: normalizar(htmlElement.innerText || htmlElement.getAttribute('title') || htmlElement.getAttribute('alt') || htmlElement.getAttribute('src') || '') };
+              })
+              .filter((item) => item.rect.width > 0 && item.rect.height > 0)
+              .filter((item) => Math.abs(item.rect.top - rectSelect.top) < 24)
+              .filter((item) => item.rect.width <= 40 && item.rect.height <= 40)
+              .filter((item) => !/TOTAL|ITEMS|PAGINA|^\d+$/.test(item.text.toUpperCase()));
+            const controlSiguiente = controlesPagina
+              .filter((item) => item.rect.left > rectSelect.right)
+              .filter((item) => item.rect.left - rectSelect.right < 80)
+              .sort((a, b) => a.rect.left - b.rect.left)[0];
+            const controlAnterior = controlesPagina
+              .filter((item) => item.rect.right < rectSelect.left)
+              .filter((item) => rectSelect.left - item.rect.right < 80)
+              .sort((a, b) => b.rect.right - a.rect.right)[0];
+            const control = paginaDestinoNumero > paginaActualNumero ? controlSiguiente : controlAnterior;
+            if (!control) return false;
+
+            control.element.click();
+            return true;
+          }, pagina).catch(() => false);
+
+          for (let intentoPagina = 1; intentoPagina <= 3; intentoPagina++) {
+            await comprasPage.waitForTimeout(5000);
+            const clickEjecutado = await clickControlPagina();
+            if (clickEjecutado && await esperarPaginaObjetivo()) {
+              return true;
+            }
+          }
+
+          const paginaActualAntesTeclado = await leerPaginaActual();
+          const pasosPagina = Number(pagina) - Number(paginaActualAntesTeclado);
+          if (Number.isFinite(pasosPagina) && pasosPagina !== 0) {
+            await selectPagina.click({ timeout: 5000 }).catch(() => undefined);
+            await comprasPage.waitForTimeout(1000);
+            for (let paso = 0; paso < Math.abs(pasosPagina); paso++) {
+              await comprasPage.keyboard.press(pasosPagina > 0 ? 'ArrowDown' : 'ArrowUp');
+              await comprasPage.waitForTimeout(500);
+            }
+            await comprasPage.keyboard.press('Enter');
+            if (await esperarPaginaObjetivo()) {
+              return true;
+            }
+          }
+
+          await selectPagina.selectOption({ label: pagina }).catch(async () => {
+            await selectPagina.selectOption({ value: pagina });
+          });
+          return esperarPaginaObjetivo();
+        };
+
+        if (usarFrame) {
+          const centerFrame = await obtenerFrameAsignacion();
+          if (centerFrame && await seleccionarConPlaywright(centerFrame)) {
+            return true;
+          }
+        } else if (await seleccionarConPlaywright(comprasPage)) {
+          return true;
+        }
+
+        const seleccionarPagina = (paginaObjetivo: string) => {
+          const normalizar = (valor: string) => String(valor || '').trim().replace(/\s+/g, ' ');
+          const normalizarSinAcentos = (valor: string) => normalizar(valor)
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .toUpperCase();
+          const labelsPagina = Array.from(document.querySelectorAll('td, th, label, span, div')) as HTMLElement[];
+          const labelPagina = labelsPagina
+            .map((element) => ({ element, rect: element.getBoundingClientRect(), text: normalizarSinAcentos(element.innerText || element.textContent || '') }))
+            .filter((item) => item.rect.width > 0 && item.rect.height > 0)
+            .find((item) => /^PAGINA:?$/.test(item.text));
+          const selects = Array.from(document.querySelectorAll('select')) as HTMLSelectElement[];
+          const selectPagina = labelPagina
+            ? selects
+              .map((select) => ({ select, rect: select.getBoundingClientRect() }))
+              .filter((item) => item.rect.width > 0 && item.rect.height > 0)
+              .filter((item) => item.rect.left > labelPagina.rect.right && Math.abs(item.rect.top - labelPagina.rect.top) < 24)
+              .sort((a, b) => a.rect.left - b.rect.left)[0]?.select
+            : undefined;
+          if (!selectPagina) return false;
+
+          const opciones = Array.from(selectPagina.options);
+          const paginaActual = Number(selectPagina.options[selectPagina.selectedIndex]?.textContent || selectPagina.value || '1');
+          const paginaDestino = Number(paginaObjetivo);
+          if (paginaActual === paginaDestino) return true;
+
+          const rectSelect = selectPagina.getBoundingClientRect();
+          const controlesPagina = Array.from(document.querySelectorAll('a, button, input, img, span'))
+            .map((element) => {
+              const htmlElement = element as HTMLElement;
               const rect = htmlElement.getBoundingClientRect();
-              const value = input.value?.trim();
-              const text = htmlElement.textContent?.trim();
+              return { element: htmlElement, rect, text: normalizar(htmlElement.innerText || htmlElement.getAttribute('title') || htmlElement.getAttribute('alt') || htmlElement.getAttribute('src') || '') };
+            })
+            .filter((item) => item.rect.width > 0 && item.rect.height > 0)
+            .filter((item) => Math.abs(item.rect.top - rectSelect.top) < 24)
+            .filter((item) => item.rect.width <= 40 && item.rect.height <= 40)
+            .filter((item) => !/TOTAL|ITEMS|PAGINA|^\d+$/.test(item.text.toUpperCase()));
+          const controlSiguiente = controlesPagina
+            .filter((item) => item.rect.left > rectSelect.right)
+            .filter((item) => item.rect.left - rectSelect.right < 80)
+            .sort((a, b) => a.rect.left - b.rect.left)[0];
+          const controlAnterior = controlesPagina
+            .filter((item) => item.rect.right < rectSelect.left)
+            .filter((item) => rectSelect.left - item.rect.right < 80)
+            .sort((a, b) => b.rect.right - a.rect.right)[0];
+          const control = paginaDestino > paginaActual ? controlSiguiente : controlAnterior;
+          if (control) {
+            control.element.click();
+            return true;
+          }
 
+          const opcion = opciones.find((option) =>
+            normalizar(option.value) === paginaObjetivo || normalizar(option.textContent || '') === paginaObjetivo
+          ) || opciones[Number(paginaObjetivo) - 1];
+          if (!opcion) return false;
+
+          selectPagina.value = opcion.value;
+          selectPagina.dispatchEvent(new Event('input', { bubbles: true }));
+          selectPagina.dispatchEvent(new Event('change', { bubbles: true }));
+          selectPagina.dispatchEvent(new Event('blur', { bubbles: true }));
+          return true;
+        };
+
+        if (usarFrame) {
+          const centerFrame = await obtenerFrameAsignacion();
+          if (!centerFrame) return false;
+          const seleccionada = await centerFrame.locator('body').evaluate(seleccionarPagina, pagina);
+          if (seleccionada) {
+            await comprasPage.waitForTimeout(12000);
+          }
+          return seleccionada;
+        }
+
+        const seleccionada = await comprasPage.locator('body').evaluate(seleccionarPagina, pagina);
+        if (seleccionada) {
+          await comprasPage.waitForTimeout(12000);
+        }
+        return seleccionada;
+      };
+
+      const obtenerPrecioUnidadItemAsignacion = async (): Promise<ResultadoPrecioUnidadAsignacion> => {
+        const extraerPrecioUnidadItem = (
+          elements: Element[],
+          datos: { orderReference: string; itemReference: string; paginasDisponibles: string[] }
+        ) => {
+          const normalizar = (valor: string) => String(valor || '')
+            .trim()
+            .replace(/\s+/g, ' ')
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .toUpperCase();
+          const obtenerValor = (element: Element) => {
+            const htmlElement = element as HTMLElement;
+            const input = element as HTMLInputElement;
+            return (
+              input.value ||
+              htmlElement.getAttribute('value') ||
+              htmlElement.innerText ||
+              htmlElement.textContent ||
+              htmlElement.title ||
+              htmlElement.getAttribute('aria-label') ||
+              ''
+            ).trim();
+          };
+          const seCruzaHorizontalmente = (celda: { x: number; width: number }, header: { x: number; width: number }) =>
+            celda.x < header.x + header.width && celda.x + celda.width > header.x;
+          const valorItemCoincide = (valor: string) => {
+            const normalizado = normalizar(valor);
+            const itemNormalizado = normalizar(datos.itemReference);
+            return normalizado === itemNormalizado || String(Number(normalizado)) === String(Number(itemNormalizado));
+          };
+
+          const visibles = elements
+            .map((element) => {
+              const htmlElement = element as HTMLElement;
+              const rect = htmlElement.getBoundingClientRect();
+              const value = obtenerValor(element);
+              const select = element as HTMLSelectElement;
+              const selectedOption = select.tagName === 'SELECT'
+                ? (select.options[select.selectedIndex]?.value || select.options[select.selectedIndex]?.text || '')
+                : '';
               return {
-                value: value || text || '',
+                element: htmlElement,
+                value,
+                normalized: normalizar(value || selectedOption),
                 x: rect.x,
                 y: rect.y,
                 width: rect.width,
-                height: rect.height
+                height: rect.height,
               };
-            }).filter((item) => item.value);
+            })
+            .filter((item) => item.width > 0 && item.height > 0);
 
-            const precioUnidadHeaders = items.filter((item) => /precio\s*unidad:?/i.test(item.value));
+          const paginaActual = visibles.find((item) =>
+            item.element.tagName === 'SELECT'
+            && Array.from((item.element as HTMLSelectElement).options).every((option) => /^\d+$/.test((option.value || option.textContent || '').trim()))
+          )?.normalized || '';
 
-            const valoresBajoPrecioUnidad = precioUnidadHeaders.flatMap((header) =>
-              items
-                .filter((item) => item.y > header.y + header.height)
-                .filter((item) => item.x < header.x + header.width && item.x + item.width > header.x)
-                .map((item) => item.value)
-                .filter((value) => /^\$?\d+(?:[.,]\d+)?$/.test(value))
-            );
+          const buscarHeaderGrilla = (regex: RegExp) => visibles
+            .filter((item) => regex.test(item.normalized))
+            .sort((a, b) => b.y - a.y)[0];
+          const buscarHeaderPrecioUnidad = () => {
+            const headerCompleto = buscarHeaderGrilla(/PRECIO\s*UNIDAD/);
+            if (headerCompleto) return headerCompleto;
 
-            const valoresNumericosVisibles = items
-              .map((item) => item.value)
-              .filter((value) => /^\$?\d+(?:[.,]\d+)?$/.test(value));
+            const headersPrecio = visibles
+              .filter((item) => /^PRECIO:?$/.test(item.normalized))
+              .sort((a, b) => b.y - a.y);
+            const headersUnidad = visibles
+              .filter((item) => /^UNIDAD:?$/.test(item.normalized))
+              .sort((a, b) => b.y - a.y);
 
-            const valoresAmpliados: string[] = [];
-            for (const element of elements) {
-              const htmlElement = element as any;
-              agregar(valoresAmpliados, htmlElement.value);
-              agregar(valoresAmpliados, htmlElement.getAttribute?.('value'));
-              agregar(valoresAmpliados, htmlElement.innerText);
-              agregar(valoresAmpliados, htmlElement.textContent);
-              agregar(valoresAmpliados, htmlElement.title);
-              agregar(valoresAmpliados, htmlElement.getAttribute?.('aria-label'));
+            for (const precio of headersPrecio) {
+              const unidad = headersUnidad.find((item) =>
+                Math.abs((item.x + item.width / 2) - (precio.x + precio.width / 2)) <= Math.max(precio.width, item.width)
+                && item.y >= precio.y
+                && item.y - precio.y <= 40
+              );
+
+              if (unidad) {
+                return {
+                  ...precio,
+                  x: Math.min(precio.x, unidad.x),
+                  y: Math.min(precio.y, unidad.y),
+                  width: Math.max(precio.x + precio.width, unidad.x + unidad.width) - Math.min(precio.x, unidad.x),
+                  height: Math.max(precio.y + precio.height, unidad.y + unidad.height) - Math.min(precio.y, unidad.y),
+                };
+              }
             }
 
-            return [...new Set([...valoresBajoPrecioUnidad, ...valoresNumericosVisibles, ...valoresAmpliados])]
-              .filter((value) => /\d/.test(value));
-          });
-        }
-
-        return comprasPage.locator('td:visible, th:visible, span:visible, div:visible, input:visible').evaluateAll((elements) => {
-          const extraerNumeros = (valor: string) => valor.match(/\$?\d+(?:[.,]\d+)?/g) ?? [];
-          const agregar = (destino: string[], valor: unknown) => {
-            const texto = String(valor ?? '').trim();
-            if (!texto) return;
-            destino.push(texto);
-            destino.push(...extraerNumeros(texto));
+            return undefined;
           };
-          const items = elements.map((element) => {
-            const htmlElement = element as any;
-            const input = element as any;
-            const rect = htmlElement.getBoundingClientRect();
-            const value = input.value?.trim();
-            const text = htmlElement.textContent?.trim();
+          const headers = {
+            orden: buscarHeaderGrilla(/ORDEN/),
+            item: buscarHeaderGrilla(/\bITEM\b/),
+            precioUnidad: buscarHeaderPrecioUnidad(),
+          };
 
-            return {
-              value: value || text || '',
-              x: rect.x,
-              y: rect.y,
-              width: rect.width,
-              height: rect.height
-            };
-          }).filter((item) => item.value);
+          let filas = Array.from(document.querySelectorAll('tr, .ag-row'))
+            .map((fila) => {
+              const filaHtml = fila as HTMLElement;
+              const rectFila = filaHtml.getBoundingClientRect();
+              const celdas = Array.from(fila.children)
+                .filter((child) => child.matches('td, th, [colid], .ag-cell'))
+                .map((child) => {
+                  const childHtml = child as HTMLElement;
+                  const childRect = childHtml.getBoundingClientRect();
+                  const value = obtenerValor(child);
+                  return {
+                    value,
+                    normalized: normalizar(value),
+                    x: childRect.x,
+                    y: childRect.y,
+                    width: childRect.width,
+                    height: childRect.height,
+                    colid: child.getAttribute('colid') || '',
+                  };
+                })
+                .filter((celda) => celda.width > 0 && celda.height > 0);
 
-          const precioUnidadHeaders = items.filter((item) => /precio\s*unidad:?/i.test(item.value));
+              const obtenerCeldaPorHeader = (header: { x: number; width: number } | undefined, regexColid: RegExp, preferirHeader = false) => {
+                const celdaPorHeader = header ? celdas.find((celda) => seCruzaHorizontalmente(celda, header)) : undefined;
+                const celdaPorColid = celdas.find((celda) => regexColid.test(celda.colid));
+                return preferirHeader ? celdaPorHeader || celdaPorColid : celdaPorColid || celdaPorHeader;
+              };
+              const esValorMonetario = (valor: string) => /\$/.test(valor);
+              const celdaMonetariaFila = () => celdas
+                .filter((celda) => esValorMonetario(celda.value))
+                .sort((a, b) => a.x - b.x)[0];
+              const celdaMonetariaDerecha = (celdaBase: { x: number; width: number } | undefined) => celdaBase
+                ? celdas
+                  .filter((celda) => celda.x > celdaBase.x + celdaBase.width - 2)
+                  .filter((celda) => esValorMonetario(celda.value))
+                  .sort((a, b) => a.x - b.x)[0]
+                : undefined;
 
-          const valoresBajoPrecioUnidad = precioUnidadHeaders.flatMap((header) =>
-            items
-              .filter((item) => item.y > header.y + header.height)
-              .filter((item) => item.x < header.x + header.width && item.x + item.width > header.x)
-              .map((item) => item.value)
-              .filter((value) => /^\$?\d+(?:[.,]\d+)?$/.test(value))
-          );
+              const celdaOrden = obtenerCeldaPorHeader(headers.orden, /order/i);
+              const celdaItem = obtenerCeldaPorHeader(headers.item, /^item$/i);
+              let celdaPrecioUnidad = obtenerCeldaPorHeader(headers.precioUnidad, /precio|price/i, true);
+              if (celdaPrecioUnidad && !esValorMonetario(celdaPrecioUnidad.value)) {
+                celdaPrecioUnidad = celdaMonetariaDerecha(celdaPrecioUnidad) || celdaPrecioUnidad;
+              }
+              celdaPrecioUnidad = celdaMonetariaFila() || celdaPrecioUnidad;
 
-          const valoresNumericosVisibles = items
-            .map((item) => item.value)
-            .filter((value) => /^\$?\d+(?:[.,]\d+)?$/.test(value));
+              return {
+                y: rectFila.y,
+                orden: celdaOrden?.value || '',
+                item: celdaItem?.value || '',
+                precioUnidad: celdaPrecioUnidad?.value || '',
+                ordenNormalizada: normalizar(celdaOrden?.value || ''),
+                itemNormalizado: normalizar(celdaItem?.value || ''),
+              };
+            })
+            .filter((fila) => fila.orden || fila.item || fila.precioUnidad);
 
-          const valoresAmpliados: string[] = [];
-          for (const element of elements) {
-            const htmlElement = element as any;
-            agregar(valoresAmpliados, htmlElement.value);
-            agregar(valoresAmpliados, htmlElement.getAttribute?.('value'));
-            agregar(valoresAmpliados, htmlElement.innerText);
-            agregar(valoresAmpliados, htmlElement.textContent);
-            agregar(valoresAmpliados, htmlElement.title);
-            agregar(valoresAmpliados, htmlElement.getAttribute?.('aria-label'));
+          if (filas.every((fila) => fila.ordenNormalizada !== normalizar(datos.orderReference)) && headers.orden && headers.item && headers.precioUnidad) {
+            const celdasDatos = visibles
+              .filter((item) => item.y > Math.max(headers.orden!.y, headers.item!.y, headers.precioUnidad!.y) + Math.max(headers.orden!.height, headers.item!.height, headers.precioUnidad!.height) - 2)
+              .filter((item) => item.normalized && !/^ORDEN#?:?$|^ITEM:?$|^PRECIO\s*UNIDAD:?$/.test(item.normalized));
+            const filasPorY = new Map<number, typeof celdasDatos>();
+
+            for (const celda of celdasDatos) {
+              const llaveExistente = Array.from(filasPorY.keys()).find((y) => Math.abs(y - celda.y) <= 8);
+              const llave = llaveExistente ?? Math.round(celda.y);
+              filasPorY.set(llave, [...(filasPorY.get(llave) ?? []), celda]);
+            }
+
+            filas = Array.from(filasPorY.values()).map((celdas) => {
+              const celdaOrden = celdas.find((celda) => seCruzaHorizontalmente(celda, headers.orden!));
+              const celdaItem = celdas.find((celda) => seCruzaHorizontalmente(celda, headers.item!));
+              const esValorMonetario = (valor: string) => /\$/.test(valor);
+              let celdaPrecioUnidad = celdas.find((celda) => seCruzaHorizontalmente(celda, headers.precioUnidad!));
+              if (celdaPrecioUnidad && !esValorMonetario(celdaPrecioUnidad.value)) {
+                celdaPrecioUnidad = celdas
+                  .filter((celda) => celda.x > celdaPrecioUnidad!.x + celdaPrecioUnidad!.width - 2)
+                  .filter((celda) => esValorMonetario(celda.value))
+                  .sort((a, b) => a.x - b.x)[0] || celdaPrecioUnidad;
+              }
+              celdaPrecioUnidad = celdas
+                .filter((celda) => esValorMonetario(celda.value))
+                .sort((a, b) => a.x - b.x)[0] || celdaPrecioUnidad;
+              return {
+                y: Math.min(...celdas.map((celda) => celda.y)),
+                orden: celdaOrden?.value || '',
+                item: celdaItem?.value || '',
+                precioUnidad: celdaPrecioUnidad?.value || '',
+                ordenNormalizada: normalizar(celdaOrden?.value || ''),
+                itemNormalizado: normalizar(celdaItem?.value || ''),
+              };
+            }).filter((fila) => fila.orden || fila.item || fila.precioUnidad);
           }
 
-          return [...new Set([...valoresBajoPrecioUnidad, ...valoresNumericosVisibles, ...valoresAmpliados])]
-            .filter((value) => /\d/.test(value));
-        });
+          const filaObjetivo = filas.find((fila) =>
+            fila.ordenNormalizada === normalizar(datos.orderReference) && valorItemCoincide(fila.itemNormalizado)
+          );
+
+          const filasVisibles = filas
+            .filter((fila) => fila.ordenNormalizada === normalizar(datos.orderReference))
+            .map((fila) => ({
+              orden: fila.orden,
+              item: fila.item,
+              precioUnidad: fila.precioUnidad,
+            }));
+
+          if (!filaObjetivo) {
+            return {
+              encontrado: false,
+              pagina: paginaActual,
+              orden: datos.orderReference,
+              item: datos.itemReference,
+              precioUnidad: '',
+              filasVisibles,
+              paginasDisponibles: datos.paginasDisponibles,
+            };
+          }
+
+          return {
+            encontrado: true,
+            pagina: paginaActual,
+            orden: filaObjetivo.orden,
+            item: filaObjetivo.item,
+            precioUnidad: filaObjetivo.precioUnidad,
+            filasVisibles,
+            paginasDisponibles: datos.paginasDisponibles,
+          };
+        };
+
+        const paginasDisponibles = await obtenerPaginasDisponiblesAsignacion();
+        const args = {
+          orderReference: orderReferenceCapturado,
+          itemReference: itemOrderReferenceCapturado,
+          paginasDisponibles,
+        };
+
+        if (usarFrame) {
+          const centerFrame = await obtenerFrameAsignacion();
+          if (!centerFrame) {
+            return { encontrado: false, pagina: '', orden: orderReferenceCapturado, item: itemOrderReferenceCapturado, precioUnidad: '', filasVisibles: [], paginasDisponibles };
+          }
+          return centerFrame.locator(selectorElementosAsignacion).evaluateAll(extraerPrecioUnidadItem, args);
+        }
+
+        return comprasPage.locator(selectorElementosAsignacion).evaluateAll(extraerPrecioUnidadItem, args);
+      };
+
+      const buscarPrecioUnidadItemEnPaginasAsignacion = async (intento: number) => {
+        const paginasDisponibles = await obtenerPaginasDisponiblesAsignacion();
+        const paginas = paginasDisponibles.length > 0 ? paginasDisponibles : ['1'];
+        let ultimoResultado: ResultadoPrecioUnidadAsignacion | null = null;
+
+        for (const [indicePagina, paginaAsignacion] of paginas.entries()) {
+          let resultado: ResultadoPrecioUnidadAsignacion | null = null;
+
+          if (indicePagina > 0) {
+          for (let intentoPagina = 1; intentoPagina <= 3; intentoPagina++) {
+            await comprasPage.waitForTimeout(7000);
+            const paginaSeleccionada = await seleccionarPaginaAsignacion(paginaAsignacion);
+            if (!paginaSeleccionada) {
+              console.log(`⚠️ No se pudo confirmar seleccion de pagina ${paginaAsignacion} (intento pagina ${intentoPagina}/3). Reintentando seleccion...`);
+              continue;
+            }
+
+            await comprasPage.waitForTimeout(12000);
+            await esperarCargaAsignacion();
+            await tomarScreenshotPagina(comprasPage, `reports/screenshots/16-betagr-asignacion-pagina-${paginaAsignacion}-seleccionada-intento-${intento}-try-${intentoPagina}.png`);
+
+              resultado = await obtenerPrecioUnidadItemAsignacion();
+              fs.writeFileSync(
+                `reports/html/16-betagr-precio-unidad-item-${orderReferenceCapturado}-${itemOrderReferenceCapturado}-intento-${intento}-pagina-${paginaAsignacion}-try-${intentoPagina}.json`,
+                JSON.stringify(resultado, null, 2)
+              );
+
+              if (resultado.pagina === paginaAsignacion && resultado.filasVisibles.length > 0) {
+                break;
+              }
+
+              console.log(`⚠️ La pagina ${paginaAsignacion} aun no quedo cargada en Asignacion de ordenes (intento pagina ${intentoPagina}/3). Reintentando seleccion...`);
+            }
+
+            expect(
+              resultado?.pagina === paginaAsignacion && resultado.filasVisibles.length > 0,
+              `Debe poder cambiar y cargar la pagina ${paginaAsignacion} en Asignacion de ordenes antes de validar Precio Unidad`
+            ).toBeTruthy();
+          }
+
+          if (!resultado) {
+            resultado = await obtenerPrecioUnidadItemAsignacion();
+          }
+
+          ultimoResultado = resultado;
+          fs.writeFileSync(
+            `reports/html/16-betagr-precio-unidad-item-${orderReferenceCapturado}-${itemOrderReferenceCapturado}-intento-${intento}-pagina-${paginaAsignacion}.json`,
+            JSON.stringify(resultado, null, 2)
+          );
+
+          if (resultado.encontrado) {
+            await tomarScreenshotPagina(comprasPage, `reports/screenshots/16-betagr-asignacion-precio-item-${itemOrderReferenceCapturado}-pagina-${paginaAsignacion}.png`);
+            return resultado;
+          }
+        }
+
+        return ultimoResultado ?? {
+          encontrado: false,
+          pagina: '',
+          orden: orderReferenceCapturado,
+          item: itemOrderReferenceCapturado,
+          precioUnidad: '',
+          filasVisibles: [],
+          paginasDisponibles: paginas,
+        };
       };
 
       await aplicarRangoFechasMesAsignacion();
@@ -1041,17 +1475,23 @@ test.describe('MÃ³dulo Bulk Changes â€” Flujo principal Price', () => {
       const primerosTresNumerosFobPrice = obtenerPrimerosTresNumeros(valorPriceAsignado);
       const selectorValoresAsignacion = 'td:visible, th:visible, span:visible, div:visible, input:visible';
       const estiloEvidenciaExitosa = {
-        outline: '4px solid #16803c',
-        backgroundColor: '#e8f5e9',
+        outline: '4px solid #0057d8',
+        backgroundColor: '#dbeafe',
         color: '#000000',
       };
       const enfocarPrecioUnidadCoincidente = async () => {
         const enfocarElemento = async (locatorBase: any) => {
-          return locatorBase.evaluateAll((elements: Element[], params: { primerosTres: string; estilo: typeof estiloEvidenciaExitosa }) => {
+          return locatorBase.evaluateAll((elements: Element[], params: { primerosTres: string; orderReference: string; itemReference: string; estilo: typeof estiloEvidenciaExitosa }) => {
             const obtenerPrimerosTres = (valor: string) => {
               const numeros = String(valor).replace(/[^0-9]/g, '');
               return numeros ? numeros.slice(0, 3).padEnd(3, '0') : '';
             };
+            const normalizar = (valor: string) => String(valor || '')
+              .trim()
+              .replace(/\s+/g, ' ')
+              .normalize('NFD')
+              .replace(/[\u0300-\u036f]/g, '')
+              .toUpperCase();
             const obtenerValor = (element: Element) => {
               const htmlElement = element as HTMLElement;
               const input = element as HTMLInputElement;
@@ -1069,6 +1509,11 @@ test.describe('MÃ³dulo Bulk Changes â€” Flujo principal Price', () => {
               item: { rect: DOMRect },
               header: { rect: DOMRect }
             ) => item.rect.left < header.rect.right && item.rect.right > header.rect.left;
+            const valorItemCoincide = (valor: string) => {
+              const normalizado = normalizar(valor);
+              const itemNormalizado = normalizar(params.itemReference);
+              return normalizado === itemNormalizado || String(Number(normalizado)) === String(Number(itemNormalizado));
+            };
 
             const items = elements
               .map((element) => {
@@ -1080,17 +1525,97 @@ test.describe('MÃ³dulo Bulk Changes â€” Flujo principal Price', () => {
               })
               .filter((item) => item.value && item.rect.width > 0 && item.rect.height > 0);
 
-            const headersPrecioUnidad = items.filter((item) => /precio\s*unidad:?/i.test(item.value));
-            const candidatos = headersPrecioUnidad
-              .flatMap((header) => items
-                .filter((item) => item.rect.top > header.rect.bottom)
-                .filter((item) => seCruzaHorizontalmente(item, header))
-              )
-              .filter((item) => /\d/.test(item.value))
-              .filter((item) => obtenerPrimerosTres(item.value) === params.primerosTres)
-              .sort((a, b) => a.rect.top - b.rect.top);
+            const buscarHeaderGrilla = (regex: RegExp) => items
+              .filter((item) => regex.test(normalizar(item.value)))
+              .sort((a, b) => b.rect.top - a.rect.top)[0];
+            const buscarHeaderPrecioUnidad = () => {
+              const headerCompleto = buscarHeaderGrilla(/PRECIO\s*UNIDAD/);
+              if (headerCompleto) return headerCompleto;
 
-            const candidato = candidatos[0];
+              const headersPrecio = items
+                .filter((item) => /^PRECIO:?$/.test(normalizar(item.value)))
+                .sort((a, b) => b.rect.top - a.rect.top);
+              const headersUnidad = items
+                .filter((item) => /^UNIDAD:?$/.test(normalizar(item.value)))
+                .sort((a, b) => b.rect.top - a.rect.top);
+
+              for (const precio of headersPrecio) {
+                const unidad = headersUnidad.find((item) =>
+                  Math.abs((item.rect.left + item.rect.width / 2) - (precio.rect.left + precio.rect.width / 2)) <= Math.max(precio.rect.width, item.rect.width)
+                  && item.rect.top >= precio.rect.top
+                  && item.rect.top - precio.rect.top <= 40
+                );
+
+                if (unidad) {
+                  const left = Math.min(precio.rect.left, unidad.rect.left);
+                  const top = Math.min(precio.rect.top, unidad.rect.top);
+                  const right = Math.max(precio.rect.right, unidad.rect.right);
+                  const bottom = Math.max(precio.rect.bottom, unidad.rect.bottom);
+                  return {
+                    ...precio,
+                    rect: {
+                      x: left,
+                      y: top,
+                      left,
+                      top,
+                      right,
+                      bottom,
+                      width: right - left,
+                      height: bottom - top,
+                      toJSON: () => ({}),
+                    },
+                  };
+                }
+              }
+
+              return undefined;
+            };
+            const headers = {
+              orden: buscarHeaderGrilla(/ORDEN/),
+              item: buscarHeaderGrilla(/\bITEM\b/),
+              precioUnidad: buscarHeaderPrecioUnidad(),
+            };
+            if (!headers.orden || !headers.item || !headers.precioUnidad) {
+              return false;
+            }
+
+            const celdasDatos = items
+              .filter((item) => item.rect.top > Math.max(headers.orden!.rect.top, headers.item!.rect.top, headers.precioUnidad!.rect.top))
+              .filter((item) => !/^ORDEN#?:?$|^ITEM:?$|^PRECIO\s*UNIDAD:?$/.test(normalizar(item.value)));
+            const filasPorY = new Map<number, typeof celdasDatos>();
+            for (const celda of celdasDatos) {
+              const llaveExistente = Array.from(filasPorY.keys()).find((y) => Math.abs(y - celda.rect.top) <= 8);
+              const llave = llaveExistente ?? Math.round(celda.rect.top);
+              filasPorY.set(llave, [...(filasPorY.get(llave) ?? []), celda]);
+            }
+
+            const candidato = Array.from(filasPorY.values())
+              .map((celdas) => {
+                const esValorMonetario = (valor: string) => /\$/.test(valor);
+                const precioUnidadInicial = celdas.find((celda) => seCruzaHorizontalmente(celda, headers.precioUnidad!));
+                const precioUnidad = precioUnidadInicial && !esValorMonetario(precioUnidadInicial.value)
+                  ? celdas
+                    .filter((celda) => celda.rect.left > precioUnidadInicial.rect.left + precioUnidadInicial.rect.width - 2)
+                    .filter((celda) => esValorMonetario(celda.value))
+                    .filter((celda) => obtenerPrimerosTres(celda.value) === params.primerosTres)
+                    .sort((a, b) => a.rect.left - b.rect.left)[0] || precioUnidadInicial
+                  : precioUnidadInicial;
+                const precioUnidadMonetario = celdas
+                  .filter((celda) => esValorMonetario(celda.value))
+                  .filter((celda) => obtenerPrimerosTres(celda.value) === params.primerosTres)
+                  .sort((a, b) => a.rect.left - b.rect.left)[0] || precioUnidad;
+
+                return {
+                  orden: celdas.find((celda) => seCruzaHorizontalmente(celda, headers.orden!)),
+                  item: celdas.find((celda) => seCruzaHorizontalmente(celda, headers.item!)),
+                  precioUnidad: precioUnidadMonetario,
+                };
+              })
+              .find((fila) =>
+                normalizar(fila.orden?.value || '') === normalizar(params.orderReference)
+                && valorItemCoincide(fila.item?.value || '')
+                && obtenerPrimerosTres(fila.precioUnidad?.value || '') === params.primerosTres
+              )?.precioUnidad;
             if (!candidato) {
               return false;
             }
@@ -1100,7 +1625,7 @@ test.describe('MÃ³dulo Bulk Changes â€” Flujo principal Price', () => {
             candidato.element.style.backgroundColor = params.estilo.backgroundColor;
             candidato.element.style.color = params.estilo.color;
             return true;
-          }, { primerosTres: primerosTresNumerosFobPrice, estilo: estiloEvidenciaExitosa });
+          }, { primerosTres: primerosTresNumerosFobPrice, orderReference: orderReferenceCapturado, itemReference: itemOrderReferenceCapturado, estilo: estiloEvidenciaExitosa });
         };
 
         if (usarFrame) {
@@ -1114,44 +1639,48 @@ test.describe('MÃ³dulo Bulk Changes â€” Flujo principal Price', () => {
       };
       let precioVisible = false;
       let intentoConPrecioCoincidente = 0;
+      let resultadoPrecioUnidadFinal: ResultadoPrecioUnidadAsignacion | null = null;
       const maxIntentosAsignacion = 5;
 
       for (let intento = 1; intento <= maxIntentosAsignacion; intento++) {
-        const valoresPrecioUnidadAsignacion = await obtenerValoresPrecioUnidadAsignacion();
+        const resultadoPrecioUnidadAsignacion = await buscarPrecioUnidadItemEnPaginasAsignacion(intento);
+        resultadoPrecioUnidadFinal = resultadoPrecioUnidadAsignacion;
         fs.writeFileSync(
           `reports/html/16-betagr-precio-unidad-candidatos-intento-${intento}.json`,
-          JSON.stringify(valoresPrecioUnidadAsignacion, null, 2)
+          JSON.stringify(resultadoPrecioUnidadAsignacion, null, 2)
         );
-        const valoresPrecioUnidadNormalizados = valoresPrecioUnidadAsignacion.map((valor) => ({
-          valorOriginal: valor,
-          primerosTresNumeros: obtenerPrimerosTresNumeros(valor),
-          coincideConFobPrice: obtenerPrimerosTresNumeros(valor) === primerosTresNumerosFobPrice,
-        }));
+        const primerosTresNumerosPrecioUnidad = obtenerPrimerosTresNumeros(resultadoPrecioUnidadAsignacion.precioUnidad);
+        const valorPrecioUnidadNormalizado = {
+          valorOriginal: resultadoPrecioUnidadAsignacion.precioUnidad,
+          primerosTresNumeros: primerosTresNumerosPrecioUnidad,
+          coincideConFobPrice: primerosTresNumerosPrecioUnidad === primerosTresNumerosFobPrice,
+          encontrado: resultadoPrecioUnidadAsignacion.encontrado,
+          pagina: resultadoPrecioUnidadAsignacion.pagina,
+          orden: resultadoPrecioUnidadAsignacion.orden,
+          item: resultadoPrecioUnidadAsignacion.item,
+        };
         fs.writeFileSync(
           `reports/html/16-betagr-precio-unidad-normalizados-intento-${intento}.json`,
           JSON.stringify(
             {
               fobPriceAsignadoQU: valorPriceAsignado,
               primerosTresNumerosFobPrice,
-              candidatos: valoresPrecioUnidadNormalizados,
+              candidato: valorPrecioUnidadNormalizado,
             },
             null,
             2
           )
         );
-        precioVisible = valoresPrecioUnidadAsignacion.some((valor) => {
-          const primerosTresNumerosPrecioUnidad = obtenerPrimerosTresNumeros(valor);
-          return primerosTresNumerosPrecioUnidad === primerosTresNumerosFobPrice;
-        });
+        precioVisible = resultadoPrecioUnidadAsignacion.encontrado && primerosTresNumerosPrecioUnidad === primerosTresNumerosFobPrice;
 
         if (precioVisible) {
           intentoConPrecioCoincidente = intento;
-          console.log(`SUCCESS: Los primeros 3 numeros de Precio Unidad coinciden con el FOB Price asignado en QU desde Bulk Changes (${valorPriceAsignado}, numeros ${primerosTresNumerosFobPrice}) para ${orderReferenceCapturado}`);
+          console.log(`SUCCESS: Los primeros 3 numeros de Precio Unidad coinciden con el FOB Price asignado en QU desde Bulk Changes (${valorPriceAsignado}, numeros ${primerosTresNumerosFobPrice}) para ${orderReferenceCapturado}-${itemOrderReferenceCapturado}, pagina ${resultadoPrecioUnidadAsignacion.pagina}`);
           break;
         }
 
         if (intento < maxIntentosAsignacion) {
-          console.log(`Los primeros 3 numeros de Precio Unidad no coinciden con el FOB Price asignado en QU desde Bulk Changes (${valorPriceAsignado}, numeros ${primerosTresNumerosFobPrice}). Refrescando intento ${intento} de ${maxIntentosAsignacion - 1}...`);
+          console.log(`Los primeros 3 numeros de Precio Unidad no coinciden con el FOB Price asignado en QU desde Bulk Changes (${valorPriceAsignado}, numeros ${primerosTresNumerosFobPrice}) para ${orderReferenceCapturado}-${itemOrderReferenceCapturado}. Refrescando intento ${intento} de ${maxIntentosAsignacion - 1}...`);
           await aplicarBusquedaAsignacion();
           await comprasPage.waitForTimeout(30000);
           await esperarCargaAsignacion();
@@ -1161,7 +1690,7 @@ test.describe('MÃ³dulo Bulk Changes â€” Flujo principal Price', () => {
 
       expect(
         precioVisible,
-        `Los primeros 3 numeros del campo Precio Unidad de Asignacion de ordenes deben coincidir con el FOB Price asignado en QU desde Bulk Changes (${valorPriceAsignado}, numeros ${primerosTresNumerosFobPrice}) para el prefijo ${orderReferenceCapturado}`
+        `Los primeros 3 numeros del campo Precio Unidad de Asignacion de ordenes deben coincidir con el FOB Price asignado en QU desde Bulk Changes (${valorPriceAsignado}, numeros ${primerosTresNumerosFobPrice}) para ${orderReferenceCapturado}-${itemOrderReferenceCapturado}. Ultimo resultado: ${JSON.stringify(resultadoPrecioUnidadFinal)}`
       ).toBeTruthy();
 
       const precioEnfocadoParaEvidencia = await enfocarPrecioUnidadCoincidente();
@@ -1170,6 +1699,7 @@ test.describe('MÃ³dulo Bulk Changes â€” Flujo principal Price', () => {
         `Debe poder enfocar visualmente en GR el Precio Unidad que coincide con ${valorPriceAsignado}`
       ).toBeTruthy();
       await comprasPage.waitForTimeout(1000);
+      await tomarScreenshotPagina(comprasPage, 'reports/screenshots/16-betagr-asignacion-filtro-uc.png');
       await tomarScreenshotPagina(comprasPage, 'reports/screenshots/17-betagr-precio-actualizado.png');
       await tomarScreenshotPagina(comprasPage, 'reports/screenshots/18-betagr-precio-evidencia-gr.png');
 

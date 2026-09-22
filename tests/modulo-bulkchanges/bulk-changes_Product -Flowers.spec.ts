@@ -2190,7 +2190,12 @@ test.describe('Módulo Bulk Changes — Flujo principal Product - Flowers', () =
           const orderReferenceNormalizado = normalizar(datos.orderReference);
           const itemReferenceNormalizado = normalizar(datos.itemReference);
           const codeEsperadoNormalizado = normalizar(datos.codeEsperado);
-          const filas = Array.from(document.querySelectorAll('tr'))
+          const itemCoincide = (valor: string) => {
+            const actual = normalizar(valor);
+            const esperado = normalizar(datos.itemReference);
+            return actual === esperado || String(Number(actual)) === String(Number(esperado));
+          };
+          const filas = Array.from(document.querySelectorAll('tr, .ag-row'))
             .filter(esVisible)
             .map((fila) => {
               const filaHtml = fila as HTMLElement;
@@ -2210,110 +2215,71 @@ test.describe('Módulo Bulk Changes — Flujo principal Product - Flowers', () =
             });
 
           const esFilaPrincipalObjetivo = (fila: typeof filas[number]) => {
-            const ordenCoincide = fila.celdasDirectas.some((celda) =>
+            const indiceOrden = fila.celdasDirectas.findIndex((celda) =>
               celda.value === orderReferenceNormalizado
-              || (celda.colid.toUpperCase().includes('ORDER') && celda.value.includes(orderReferenceNormalizado))
+              || (celda.colid.toUpperCase().includes('ORDER') && celda.value === orderReferenceNormalizado)
             );
-            const itemCoincide = fila.celdasDirectas.some((celda) =>
-              celda.value === itemReferenceNormalizado
-              || (celda.colid.toUpperCase() === 'ITEM' && celda.value === itemReferenceNormalizado)
-            );
-            return ordenCoincide && itemCoincide;
+            const celdaItem = fila.celdasDirectas.find((celda) => celda.colid.toUpperCase() === 'ITEM')
+              || (indiceOrden >= 0 ? fila.celdasDirectas[indiceOrden + 1] : undefined);
+            return indiceOrden >= 0 && !!celdaItem && itemCoincide(celdaItem.value);
           };
           const esOtraFilaPrincipal = (fila: typeof filas[number]) =>
             fila.celdasDirectas.some((celda) => celda.value === orderReferenceNormalizado)
             && fila.celdasDirectas.some((celda) => /^\d{3}$/.test(celda.value));
           const indiceFilaObjetivo = filas.findIndex(esFilaPrincipalObjetivo);
           if (indiceFilaObjetivo < 0) return { highlighted: false, reason: 'No se encontro la fila principal objetivo' };
+          const filaObjetivo = filas[indiceFilaObjetivo].fila;
+          filaObjetivo.scrollIntoView({ block: 'center', inline: 'nearest' });
 
-          const resaltarEnFilasReceta = (filasTabla: HTMLElement[]) => {
-            const indiceHeader = filasTabla.findIndex((fila) =>
-              Array.from(fila.children)
-                .filter((child) => child.matches('td, th') && esVisible(child))
-                .some((celda) => {
-                  const valor = normalizar(obtenerValor(celda));
-                  return valor.includes('CODIGO') && valor.includes('FLOR');
-                })
-            );
+          const rectFila = filaObjetivo.getBoundingClientRect();
+          const siguienteFilaPrincipal = filas
+            .slice(indiceFilaObjetivo + 1)
+            .find(esOtraFilaPrincipal);
+          const limiteInferior = siguienteFilaPrincipal
+            ? siguienteFilaPrincipal.fila.getBoundingClientRect().top
+            : window.innerHeight;
 
-            if (indiceHeader < 0) return null;
+          const tablasReceta = Array.from(document.querySelectorAll('table'))
+            .filter(esVisible)
+            .map((tabla) => ({
+              tabla: tabla as HTMLElement,
+              rect: (tabla as HTMLElement).getBoundingClientRect(),
+              texto: normalizar(obtenerValor(tabla)),
+            }))
+            .filter((candidato) => candidato.rect.top >= rectFila.bottom - 2)
+            .filter((candidato) => candidato.rect.bottom <= limiteInferior + 2)
+            .filter((candidato) => candidato.texto.includes('CODIGO FLOR'))
+            .filter((candidato) => candidato.texto.includes(codeEsperadoNormalizado))
+            .filter((candidato) => !candidato.texto.includes('COMENTARIOS'))
+            .sort((a, b) => (a.rect.width * a.rect.height) - (b.rect.width * b.rect.height));
 
-            const headerCells = Array.from(filasTabla[indiceHeader].children)
-              .filter((child) => child.matches('td, th') && esVisible(child)) as HTMLElement[];
-            const indiceCodigoFlor = headerCells.findIndex((celda) => {
-              const valor = normalizar(obtenerValor(celda));
-              return valor.includes('CODIGO') && valor.includes('FLOR');
-            });
+          const tablaReceta = tablasReceta[0];
+          if (!tablaReceta) {
+            return { highlighted: false, reason: `No se encontro tabla Receta del Producto con Codigo Flor ${datos.codeEsperado}` };
+          }
 
-            if (indiceCodigoFlor < 0) return null;
+          document.getElementById('qa-product-flowers-highlight')?.remove();
+          const borde = document.createElement('div');
+          borde.id = 'qa-product-flowers-highlight';
+          borde.setAttribute('data-order-item', `${datos.orderReference}-${datos.itemReference}`);
+          borde.style.position = 'fixed';
+          borde.style.left = `${Math.max(0, Math.min(rectFila.left, tablaReceta.rect.left) - 3)}px`;
+          borde.style.top = `${Math.max(0, rectFila.top - 3)}px`;
+          borde.style.width = `${Math.min(window.innerWidth, Math.max(rectFila.right, tablaReceta.rect.right) + 3) - Math.max(0, Math.min(rectFila.left, tablaReceta.rect.left) - 3)}px`;
+          borde.style.height = `${tablaReceta.rect.bottom - Math.max(0, rectFila.top - 3) + 3}px`;
+          borde.style.border = '4px solid #0057d8';
+          borde.style.boxSizing = 'border-box';
+          borde.style.pointerEvents = 'none';
+          borde.style.zIndex = '2147483647';
+          document.body.appendChild(borde);
 
-            for (const fila of filasTabla.slice(indiceHeader + 1)) {
-              const textoFila = normalizar(obtenerValor(fila));
-              if (/COMENTARIOS|ASIGNACION|ASIGNACI/.test(textoFila)) {
-                break;
-              }
-
-              const celdas = Array.from(fila.children)
-                .filter((child) => child.matches('td, th') && esVisible(child)) as HTMLElement[];
-              const celdaCodigoFlor = celdas[indiceCodigoFlor];
-              if (!celdaCodigoFlor) {
-                continue;
-              }
-
-              const valorCodigoFlor = normalizar(obtenerValor(celdaCodigoFlor));
-              if (valorCodigoFlor !== codeEsperadoNormalizado) {
-                continue;
-              }
-
-              fila.scrollIntoView({ block: 'center', inline: 'center' });
-              fila.style.outline = '4px solid #0057ff';
-              fila.style.outlineOffset = '-3px';
-              fila.style.position = fila.style.position || 'relative';
-              for (const [indice, celda] of celdas.entries()) {
-                celda.style.borderTop = '4px solid #0057ff';
-                celda.style.borderBottom = '4px solid #0057ff';
-                celda.style.boxShadow = 'inset 0 0 0 1px #0057ff';
-                if (indice === 0) celda.style.borderLeft = '4px solid #0057ff';
-                if (indice === celdas.length - 1) celda.style.borderRight = '4px solid #0057ff';
-              }
-
-              return {
-                highlighted: true,
-                code: datos.codeEsperado,
-                rowValues: celdas.map((celda) => obtenerValor(celda).trim()),
-              };
-            }
-
-            return null;
+          return {
+            highlighted: true,
+            code: datos.codeEsperado,
+            orderItem: `${datos.orderReference}-${datos.itemReference}`,
+            top: rectFila.top,
+            bottom: tablaReceta.rect.bottom,
           };
-
-          const filasDetalleObjetivo: typeof filas = [];
-          for (const fila of filas.slice(indiceFilaObjetivo + 1)) {
-            if (esOtraFilaPrincipal(fila)) break;
-            filasDetalleObjetivo.push(fila);
-            if (/ASIGNACION|ASIGNACI/.test(fila.texto)) break;
-          }
-
-          let detalleObjetivo = filas[indiceFilaObjetivo].fila.nextElementSibling as HTMLElement | null;
-          while (detalleObjetivo && !detalleObjetivo.matches('.detailTR')) {
-            if (detalleObjetivo.matches('tr')) {
-              const filaHermana = filas.find((fila) => fila.fila === detalleObjetivo);
-              if (filaHermana && esOtraFilaPrincipal(filaHermana)) break;
-            }
-            detalleObjetivo = detalleObjetivo.nextElementSibling as HTMLElement | null;
-          }
-
-          if (detalleObjetivo && esVisible(detalleObjetivo)) {
-            for (const tabla of Array.from(detalleObjetivo.querySelectorAll('table'))) {
-              const resultado = resaltarEnFilasReceta(Array.from(tabla.querySelectorAll('tr')).filter(esVisible) as HTMLElement[]);
-              if (resultado) return resultado;
-            }
-          }
-
-          const resultadoPorFilasVisibles = resaltarEnFilasReceta(filasDetalleObjetivo.map((fila) => fila.fila));
-          if (resultadoPorFilasVisibles) return resultadoPorFilasVisibles;
-
-          return { highlighted: false, reason: `No se encontro fila de Receta del Producto con Codigo Flor ${datos.codeEsperado}` };
         };
 
         if (usarFrame) {
@@ -2336,6 +2302,10 @@ test.describe('Módulo Bulk Changes — Flujo principal Product - Flowers', () =
       await comprasPage.waitForTimeout(1000);
       const resultadoResaltado = await resaltarCodigoFlorValidado();
       console.log(`Resultado resaltado Codigo Flor en GR: ${JSON.stringify(resultadoResaltado)}`);
+      expect(
+        resultadoResaltado.highlighted,
+        `Debe resaltar la fila ${orderReferenceCapturado}-${itemOrderReferenceCapturado} y solamente su tabla Receta del Producto`
+      ).toBeTruthy();
       await comprasPage.waitForTimeout(1000);
       await tomarScreenshotPagina(comprasPage, 'reports/screenshots/17-betagr-product-flowers-confirmado.png');
 

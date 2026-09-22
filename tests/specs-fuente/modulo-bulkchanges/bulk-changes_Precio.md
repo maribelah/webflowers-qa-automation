@@ -55,6 +55,7 @@ Artefactos generados:
 - Credenciales y URL: `ENV.url`, `ENV.usuario`, `ENV.password`
 - `orderReferenceCapturado`: prefijo de 6 caracteres extraido desde Bulk Changes, formato `XX####`
 - `orderReferenceCompletoCapturado`: referencia completa capturada desde el primer registro
+- `itemOrderReferenceCapturado`: item extraido de la referencia completa; se reutiliza junto con la orden para identificar la misma fila en BETA GR
 - `valorPriceAsignado`: valor aleatorio decimal entre `1.00` y `3.00`, generado con un entero y dos decimales
 - `maxIntentosAsignacion`: 5 intentos para validar `Precio Unidad`
 - Documento de evidencia: `C:\Users\DianaSPS\Documents\Pruebas Bulk Changes\Bulk-changes-Price_AAAAMMDD.docx`
@@ -173,10 +174,11 @@ Artefactos generados:
 
 ### Validacion Precio Unidad
 - Se buscan elementos visibles `td`, `th`, `span`, `div` e `input`.
-- Se localizan encabezados que coincidan con `/precio\s*unidad:?/i`.
-- Se extraen valores numericos ubicados debajo del encabezado y alineados horizontalmente con esa columna.
-- Si la alineacion visual de la columna no permite capturar el valor esperado, se agregan como fallback los valores numericos visibles de la pantalla ya filtrada por orden.
-- El fallback lee `value`, atributo `value`, `innerText`, `textContent`, `title` y `aria-label`, y extrae tokens numericos de textos compuestos.
+- Se localizan los encabezados de grilla `Orden#`, `Item` y `Precio Unidad`; este ultimo puede aparecer como un texto completo o dividido visualmente en `Precio` y `Unidad`.
+- Las celdas se agrupan por fila y la validacion se restringe a la fila que coincide simultaneamente con la referencia completa de la orden y el item capturado en Bulk Changes.
+- Se recorren las paginas disponibles de Asignacion de ordenes hasta encontrar esa fila. Cada cambio de pagina debe confirmarse antes de leer el resultado.
+- El valor se toma exclusivamente de la celda monetaria de `Precio Unidad`, identificada por el simbolo `$`. No se aceptan valores numericos de columnas vecinas como `Tallos/Ramo`, `Pendiente` o `FBE`.
+- Si la alineacion del encabezado compuesto apunta inicialmente a una celda no monetaria, se busca en la misma fila la celda monetaria correspondiente a `Precio Unidad`.
 - Se normalizan valores eliminando puntos, comas y cualquier separador antes de comparar.
 - Se eliminan comas, puntos, simbolos de moneda y cualquier caracter que no sea numero.
 - Se extraen los primeros 3 numeros de cada candidato de `Precio Unidad`.
@@ -188,16 +190,18 @@ Artefactos generados:
 - Si no coincide, se refresca la busqueda y se espera 30 segundos antes del siguiente intento.
 - Maximo de intentos: 5.
 - Cuando se encuentra el precio coincidente en GR, el valor debe enfocarse visualmente antes de tomar la evidencia final.
-- El enfoque visual para la evidencia final debe restringirse a valores ubicados debajo del encabezado `Precio Unidad` y alineados horizontalmente con esa columna.
+- El enfoque visual para la evidencia final debe restringirse a la celda monetaria de `Precio Unidad` perteneciente a la misma orden completa y al mismo item capturados.
 - No debe resaltarse ningun valor coincidente en columnas distintas, por ejemplo `Pendiente`, aunque sus primeros 3 numeros coincidan.
 - Si no se puede ubicar visualmente el valor coincidente dentro de la columna `Precio Unidad`, la prueba debe fallar para evitar generar evidencia incorrecta.
-- El resaltado visual del precio coincidente en `Precio Unidad` debe usar color verde, porque representa una validacion exitosa.
+- El resaltado visual del precio coincidente en `Precio Unidad` debe usar borde azul `#0057d8` y fondo azul claro `#dbeafe`.
 - Al coincidir, se registra el intento exitoso, se cierran `comprasPage` y `page`, y el test finaliza.
 - Evidencias por intento:
   - `reports/html/16-betagr-precio-unidad-candidatos-intento-{intento}.json`
   - `reports/html/16-betagr-precio-unidad-normalizados-intento-{intento}.json`
+  - `reports/html/16-betagr-precio-unidad-item-{orden}-{item}-intento-{intento}-pagina-{pagina}.json`
   - `reports/screenshots/16-betagr-asignacion-refresh-{intento}.png`
 - Evidencia final:
+  - `reports/screenshots/16-betagr-asignacion-filtro-uc.png`, recapturada despues de aplicar el resaltado azul
   - `reports/screenshots/17-betagr-precio-actualizado.png`
   - `reports/screenshots/18-betagr-precio-evidencia-gr.png`
 
@@ -255,20 +259,20 @@ Artefactos generados:
 28. Ingresar el prefijo de la orden capturada.
 29. Seleccionar filtro Todos.
 30. Ejecutar Actualizar.
-31. Extraer candidatos visibles del campo `Precio Unidad`.
-32. Normalizar los candidatos eliminando puntos, comas, simbolos de moneda y caracteres no numericos.
-33. Extraer los primeros 3 numeros del `FOB Price` asignado en QU.
-34. Comparar los primeros 3 numeros de `Precio Unidad` contra los primeros 3 numeros del `FOB Price`.
+31. Recorrer las paginas disponibles hasta encontrar la fila que coincide con la referencia completa y el item capturados en Bulk Changes.
+32. Leer exclusivamente la celda monetaria con `$` de la columna `Precio Unidad` en esa fila.
+33. Normalizar el valor eliminando puntos, comas, simbolos de moneda y caracteres no numericos.
+34. Extraer y comparar sus primeros 3 numeros contra los primeros 3 numeros del `FOB Price` asignado en QU.
 35. Si no coincide, refrescar la busqueda y esperar 30 segundos antes del siguiente intento.
 36. Reintentar hasta un maximo de 5 intentos.
 37. Cuando el precio coincida, enfocar visualmente el valor coincidente dentro de la columna `Precio Unidad` en GR.
-38. Resaltar en verde el valor coincidente de `Precio Unidad` para indicar evidencia exitosa.
-39. Tomar las evidencias finales `17-betagr-precio-actualizado.png` y `18-betagr-precio-evidencia-gr.png`.
+38. Resaltar en azul el valor coincidente de `Precio Unidad` para indicar el punto exacto validado.
+39. Recapturar `16-betagr-asignacion-filtro-uc.png` y tomar las evidencias finales `17-betagr-precio-actualizado.png` y `18-betagr-precio-evidencia-gr.png`.
 40. Cerrar las paginas del navegador y finalizar el test.
 
 ### Resultado esperado
 
-El cambio masivo de Price se aplica correctamente en Bulk Changes, el valor queda visible como `FOB Price` en Order Entry y los primeros 3 numeros normalizados de `Precio Unidad` en BETA GR coinciden con el valor asignado desde QU. En GR, la prueba cambia siempre el filtro `Fecha` a `UC` despues de aplicar el rango de fechas del mes actual y antes de validar el precio.
+El cambio masivo de Price se aplica correctamente en Bulk Changes, el valor queda visible como `FOB Price` en Order Entry y los primeros 3 numeros normalizados de la celda monetaria `Precio Unidad` en BETA GR coinciden con el valor asignado desde QU para la misma orden completa y el mismo item. En GR, la prueba cambia siempre el filtro `Fecha` a `UC` despues de aplicar el rango de fechas del mes actual y antes de validar el precio.
 
 ### Evidencias del caso
 
@@ -330,6 +334,32 @@ Tamano uniforme esperado:
 
 ---
 
+## Ejecucion validada 2026-09-22
+
+Comando ejecutado:
+
+```powershell
+npm.cmd run test:bulkchanges:precio:visible:word
+```
+
+Resultado:
+
+- Estado: exitoso, `1 passed`.
+- Duracion aproximada: `3.2m`.
+- Ambiente: BETA / `https://betaqu.ghtcorptest.com`.
+- Orden seleccionada: `PD7028-001`.
+- Prefijo usado en Order Entry: `PD7028`.
+- Item validado en BETA GR: `001`.
+- `FOB Price` generado y aplicado: `2.97`.
+- Validacion QU Order Entry: `FOB Price 2.97` visible para el prefijo `PD7028`.
+- Validacion BETA GR: la celda monetaria de `Precio Unidad` para `PD7028-001` coincide con los primeros 3 numeros normalizados `297`.
+- Intento exitoso en BETA GR: intento 1, pagina 1.
+- Evidencia final: precio exacto resaltado en azul dentro de la columna `Precio Unidad`.
+- Documento generado: `C:\Users\DianaSPS\Documents\Pruebas Bulk Changes\Bulk-changes-Price_20260922.docx`, con 18 imagenes.
+- Error de `qa_metrics`: no bloqueante para la validacion funcional.
+
+---
+
 ## Ejecucion validada 2026-08-19
 
 Comando ejecutado:
@@ -360,16 +390,17 @@ Resultado:
 - El test usa frames de WebFlowers; los elementos del menu se buscan en `iframe#left_page1` y los modulos en `iframe#center_page`.
 - La validacion de Order Entry no depende del indice del input; compara cualquier input visible con el precio esperado.
 - En BETA GR, despues de aplicar el rango de fechas del mes actual, siempre se cambia el filtro `Fecha` a `UC` y se vuelve a actualizar antes de evaluar `Precio Unidad`.
-- La validacion de BETA GR depende del encabezado `Precio Unidad`; si el texto del encabezado cambia, actualizar la expresion `/precio\s*unidad:?/i`.
+- La validacion de BETA GR depende de los encabezados `Orden#`, `Item` y `Precio Unidad`; este ultimo puede estar dividido en dos textos visibles.
 - La bitacora de decisiones de la sesion esta en `tests/specs-fuente/modulo-bulkchanges/bitacora-2026-08-13.md`.
 - La prueba no usa Page Class por decision del requerimiento.
 - La prueba no valida base de datos.
 - El cierre del navegador ocurre solo despues de que los primeros 3 numeros de `Precio Unidad` coinciden con los primeros 3 numeros del FOB Price asignado en QU desde Bulk Changes.
-- La evidencia final en GR debe mostrar el precio coincidente resaltado en verde exclusivamente dentro de la columna `Precio Unidad`.
-- El test no debe aceptar como evidencia visual valores coincidentes ubicados en otras columnas.
+- La evidencia final en GR debe mostrar el precio coincidente resaltado en azul exclusivamente dentro de la columna `Precio Unidad`.
+- El test no debe aceptar como resultado ni como evidencia visual valores coincidentes ubicados en otras columnas. En particular, un valor de `Tallos/Ramo` no representa el precio aunque quede alineado cerca del encabezado compuesto.
+- Las reglas de lectura de celda monetaria, identificacion por orden + item y resaltado azul pertenecen solamente a esta prueba de Precio; no deben propagarse automaticamente a otros escenarios de Bulk Changes.
 - El documento Word debe incluir imagenes completas, sin recortes, y debe conservar las capturas finales de comparacion de precio en GR.
 
 ---
 
 *webflowers-qa-automation - tests/specs-fuente/modulo-bulkchanges/bulk-changes_Precio.md*
-*Actualizado: 2026-09-01*
+*Actualizado: 2026-09-22*

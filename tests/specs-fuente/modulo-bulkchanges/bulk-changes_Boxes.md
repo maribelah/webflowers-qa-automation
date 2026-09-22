@@ -46,10 +46,11 @@ El documento de evidencias debe generarse automaticamente en Word al finalizar l
 23. Ubicar la fila exacta que coincida con la orden y el item capturados; si la grilla tiene varias paginas, cambiar de pagina hasta encontrar el item.
 24. Validar que el campo `TOTAL` de esa fila exacta coincida con el valor `BOXES` aplicado en QU.
 25. Si `TOTAL` aun no coincide, refrescar la busqueda hasta 5 intentos, esperando 30 segundos entre intentos.
-26. Tomar evidencia final en GR.
-27. Cerrar las paginas del navegador y finalizar el test.
-28. Generar el documento Word con las capturas recientes relevantes de la ejecucion, excluyendo capturas redundantes.
-29. Generar el video completo de la ejecucion en la carpeta de evidencias, reemplazando el video del mismo dia si ya existe.
+26. Identificar nuevamente la fila validada usando las columnas `Orden#` e `Item` y resaltar toda la fila con borde azul y fondo azul claro.
+27. Confirmar que la fila resaltada corresponde al item modificado y tomar la evidencia final en GR.
+28. Cerrar las paginas del navegador y finalizar el test.
+29. Generar el documento Word con las capturas recientes relevantes de la ejecucion, excluyendo capturas redundantes.
+30. Generar el video completo de la ejecucion en la carpeta de evidencias, reemplazando el video del mismo dia si ya existe.
 
 ## Reglas de validacion
 
@@ -64,6 +65,11 @@ El documento de evidencias debe generarse automaticamente en Word al finalizar l
 - En BETA GR, el campo `TOTAL` debe coincidir exactamente con el valor `BOXES` asignado en la fila de la orden-item capturada; no se permite validar contra otra fila de la misma orden.
 - En BETA GR, despues de aplicar el rango de fechas del mes actual, se debe cambiar siempre el filtro `Fecha` a `UC` antes de validar `TOTAL`.
 - En BETA GR, si la orden tiene varias paginas de resultados, la prueba debe cambiar la pagina de la grilla hasta ubicar el item capturado antes de comparar `TOTAL`; el cambio de pagina debe hacerse con espera controlada antes y despues de seleccionar la pagina para permitir que la grilla recargue.
+- La evidencia final de Boxes debe resaltar toda la fila correspondiente a la orden y al item modificados, no solamente la celda `TOTAL`.
+- La fila que se resalta debe identificarse mediante las celdas reales de las columnas `Orden#` e `Item`. No se debe buscar el numero del item entre todos los valores de la fila, porque valores como `1.00` en otras columnas pueden producir una coincidencia incorrecta con el item `001`.
+- El resaltado debe usar borde azul `#0057d8` alrededor de la fila completa y fondo azul claro `#dbeafe` en todas sus celdas.
+- Si no se puede localizar y resaltar la fila exacta de la orden-item validada, la prueba debe fallar antes de generar `17-betagr-cambio-gr-confirmado.png`.
+- Esta regla de resaltar la fila completa pertenece solamente a la prueba de Boxes y no debe propagarse a otros escenarios de Bulk Changes.
 - La validacion en GR puede requerir reintentos por latencia de propagacion.
 - Los errores de persistencia de `qa_metrics` no bloquean la validacion funcional.
 
@@ -97,7 +103,7 @@ Capturas generadas por el test:
 - `16-betagr-asignacion-filtro-uc.png`, si aplica
 - `16-betagr-asignacion-item-{item}-pagina-{pagina}.png`, si aplica
 - `16-betagr-asignacion-refresh-{intento}.png`, si aplica
-- `17-betagr-cambio-gr-confirmado.png`
+- `17-betagr-cambio-gr-confirmado.png`, con toda la fila de la orden-item modificada resaltada en azul
 
 Capturas que deben incluirse en el documento Word:
 
@@ -182,6 +188,8 @@ npm.cmd run test:bulkchanges:boxes:visible:word:video
 - El cambio `BOXES` queda confirmado con `Apply`.
 - El valor `BOXES` se valida en `Order Entry`.
 - El valor `BOXES` coincide con `TOTAL` en BETA GR para la orden-item capturada.
+- La captura final de BETA GR resalta en azul toda la fila exacta de la orden-item modificada.
+- El test falla si no puede identificar la fila por sus columnas `Orden#` e `Item`; no se permite resaltar otra fila por coincidencias numericas en columnas diferentes.
 - En BETA GR, la prueba cambia siempre `Fecha` a `UC` despues de aplicar el rango de fechas del mes actual y antes de validar `TOTAL`.
 - Se genera el documento Word en la ruta esperada.
 - Se genera el video completo de la prueba en la ruta esperada.
@@ -198,6 +206,35 @@ Este ajuste deja `UC` como condicion obligatoria de consulta en BETA GR para Box
 ## Ajuste 2026-09-11 - Validacion por orden-item en GR
 
 La validacion de BETA GR debe comparar el campo `TOTAL` en la fila exacta que coincida con la orden y el item capturados desde Bulk Changes. Si la orden tiene mas filas que las visibles en la primera pagina de la grilla, la prueba debe recorrer las paginas disponibles hasta encontrar el item objetivo y solo entonces comparar `TOTAL`. Al cambiar de pagina, la prueba debe esperar antes y despues de seleccionar la pagina para evitar leer la grilla antes de que termine de cargar.
+
+## Ajuste 2026-09-22 - Resaltado de la fila modificada en GR
+
+Despues de validar que `TOTAL` coincide con el valor `BOXES`, la prueba debe localizar nuevamente la fila usando las columnas `Orden#` e `Item`. La evidencia `17-betagr-cambio-gr-confirmado.png` debe mostrar toda esa fila con borde azul y fondo azul claro.
+
+La busqueda del item debe hacerse en su celda correspondiente. No se consideran validas coincidencias del numero del item en otras columnas de la fila. Este comportamiento es especifico de Boxes.
+
+### Ejecucion validada 2026-09-22
+
+Comando ejecutado:
+
+```powershell
+npm.cmd run test:bulkchanges:boxes:visible:word
+```
+
+Resultado:
+
+- Estado: exitoso, `1 passed`.
+- Duracion aproximada: `2.7m`.
+- Ambiente: BETA / `https://betaqu.ghtcorptest.com`.
+- Orden seleccionada: `PD7028-001`.
+- Prefijo usado para validaciones: `PD7028`.
+- Item validado en BETA GR: `001`.
+- Valor `BOXES` aplicado y validado: `1`.
+- Validacion BETA GR: `TOTAL=1` para `PD7028-001`, pagina 1.
+- Evidencia final revisada visualmente: toda la fila del item `001` quedo resaltada en azul; no se resalto la primera fila de la grilla.
+- Documento generado: `C:\Users\DianaSPS\Documents\Pruebas Bulk Changes\Bulk-changes-Boxes_20260922.docx`.
+- Imagenes incluidas en el documento: `8`.
+- Error de `qa_metrics`: no bloqueante para la validacion funcional.
 
 ### Ejecucion validada 2026-09-01
 

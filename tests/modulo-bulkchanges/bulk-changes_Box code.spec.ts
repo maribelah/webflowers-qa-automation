@@ -1604,45 +1604,82 @@ test.describe('Módulo Bulk Changes — Flujo principal Box Code', () => {
       ).toBeTruthy();
 
       const enfocarEvidenciaCajaAsignacion = async () => {
-        const enfocarValores = (elements: Element[], datos: { boxCode: string; orderReference: string }) => {
-          const normalizar = (valor: string) => String(valor).trim().replace(/\s+/g, ' ').toUpperCase();
-          const boxCodeNormalizado = normalizar(datos.boxCode);
-          const orderReferenceNormalizado = normalizar(datos.orderReference);
-          const elementosCoincidentes = elements.filter((element) => {
-            const htmlElement = element as HTMLElement;
-            const input = element as HTMLInputElement;
-            const valor = normalizar(input.value || htmlElement.textContent || htmlElement.getAttribute('title') || htmlElement.getAttribute('aria-label') || '');
+        const resaltarFila = async (locatorBase: any) => locatorBase.evaluateAll(
+          (filas: Element[], datos: { orderReference: string; itemReference: string }) => {
+            const normalizar = (valor: string) => String(valor || '')
+              .trim()
+              .replace(/\s+/g, ' ')
+              .normalize('NFD')
+              .replace(/[\u0300-\u036f]/g, '')
+              .toUpperCase();
+            const itemCoincide = (valor: string) => {
+              const actual = normalizar(valor);
+              const esperado = normalizar(datos.itemReference);
+              return actual === esperado || String(Number(actual)) === String(Number(esperado));
+            };
 
-            return (!!boxCodeNormalizado && (
-              valor === boxCodeNormalizado ||
-              valor.includes(boxCodeNormalizado) ||
-              boxCodeNormalizado.includes(valor)
-            )) || (!!orderReferenceNormalizado && valor.includes(orderReferenceNormalizado));
-          });
+            for (const fila of filas) {
+              const filaHtml = fila as HTMLElement;
+              const rect = filaHtml.getBoundingClientRect();
+              if (rect.width <= 0 || rect.height <= 0) continue;
 
-          elementosCoincidentes.at(-1)?.scrollIntoView({ block: 'center', inline: 'center' });
-        };
+              const celdas = Array.from(fila.children)
+                .filter((child) => child.matches('td, th, [colid], .ag-cell')) as HTMLElement[];
+              const obtenerValor = (celda: HTMLElement) => normalizar(
+                (celda as HTMLInputElement).value
+                || celda.getAttribute('value')
+                || celda.innerText
+                || celda.textContent
+                || ''
+              );
+              const valores = celdas.map(obtenerValor);
+              const indiceOrden = celdas.findIndex((celda, indice) =>
+                /order/i.test(celda.getAttribute('colid') || '')
+                || valores[indice] === normalizar(datos.orderReference)
+              );
+              const celdaItem = celdas.find((celda) => /^item$/i.test(celda.getAttribute('colid') || ''))
+                || (indiceOrden >= 0 ? celdas[indiceOrden + 1] : undefined);
+              const coincideOrden = indiceOrden >= 0 && valores[indiceOrden] === normalizar(datos.orderReference);
+              const coincideItem = !!celdaItem && itemCoincide(obtenerValor(celdaItem));
+              if (!coincideOrden || !coincideItem) continue;
+
+              filaHtml.style.outline = '4px solid #0057d8';
+              filaHtml.style.outlineOffset = '-2px';
+              filaHtml.style.backgroundColor = '#dbeafe';
+              celdas.forEach((celda) => {
+                celda.style.backgroundColor = '#dbeafe';
+                celda.style.borderTop = '3px solid #0057d8';
+                celda.style.borderBottom = '3px solid #0057d8';
+              });
+              if (celdas.length > 0) {
+                celdas[0].style.borderLeft = '3px solid #0057d8';
+                celdas[celdas.length - 1].style.borderRight = '3px solid #0057d8';
+              }
+              filaHtml.scrollIntoView({ block: 'center', inline: 'nearest' });
+              return true;
+            }
+
+            return false;
+          },
+          { orderReference: orderReferenceCapturado, itemReference: itemOrderReferenceCapturado }
+        );
 
         if (usarFrame) {
-          const centerFrame = await comprasPage.locator('iframe#center_page').elementHandle().then((iframe) => iframe?.contentFrame());
-          if (centerFrame) {
-            await centerFrame.locator('td:visible, th:visible, span:visible, div:visible, input:visible').evaluateAll(
-              enfocarValores,
-              { boxCode: valorBoxCodeAsignado, orderReference: orderReferenceCapturado }
-            );
-            return;
-          }
+          const centerFrame = await obtenerFrameAsignacion();
+          if (!centerFrame) return false;
+          return resaltarFila(centerFrame.locator('tr, .ag-row'));
         }
 
-        await comprasPage.locator('td:visible, th:visible, span:visible, div:visible, input:visible').evaluateAll(
-          enfocarValores,
-          { boxCode: valorBoxCodeAsignado, orderReference: orderReferenceCapturado }
-        );
+        return resaltarFila(comprasPage.locator('tr, .ag-row'));
       };
 
       await comprasPage.waitForTimeout(1000);
       await tomarScreenshotPagina(comprasPage, 'reports/screenshots/17-betagr-box-code-confirmado.png');
-      await enfocarEvidenciaCajaAsignacion();
+      const filaBoxCodeResaltada = await enfocarEvidenciaCajaAsignacion();
+      expect(
+        filaBoxCodeResaltada,
+        `Debe poder resaltar toda la fila validada de Box Code para ${orderReferenceCapturado}-${itemOrderReferenceCapturado}`
+      ).toBeTruthy();
       await comprasPage.waitForTimeout(1000);
       await tomarScreenshotPagina(comprasPage, 'reports/screenshots/18-betagr-box-code-evidencia-gr.png');
 

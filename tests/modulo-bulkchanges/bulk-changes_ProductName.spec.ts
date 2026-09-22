@@ -543,6 +543,244 @@ test.describe('Modulo Bulk Changes - Flujo principal Product Name', () => {
         }
         return comprasPage.locator('body').evaluate(activarHistoria, { orderReference: orderReferenceCapturado, itemReference: itemOrderReferenceCapturado });
       };
+      const configurarItemsPaginaHistoria = async () => {
+        const configurar = (_body: Element, datos: { orderReference: string; itemReference: string }) => {
+          const normalizar = (valor: string) => String(valor || '').trim().replace(/\s+/g, ' ').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
+          const obtenerValor = (element: Element | null | undefined) => {
+            if (!element) return '';
+            const htmlElement = element as HTMLElement;
+            const input = element as HTMLInputElement;
+            return input.value || htmlElement.getAttribute('value') || htmlElement.innerText || htmlElement.textContent || '';
+          };
+          const esVisible = (element: Element) => {
+            const rect = (element as HTMLElement).getBoundingClientRect();
+            return rect.width > 0 && rect.height > 0;
+          };
+          const orderReferenceNormalizado = normalizar(datos.orderReference);
+          const itemReferenceNormalizado = normalizar(datos.itemReference);
+          const filas = Array.from(document.querySelectorAll('.ag-row, tr')).filter(esVisible).map((fila) => ({
+            fila: fila as HTMLElement,
+            celdasDirectas: Array.from(fila.children).filter((child) => child.matches('td, th, [colid], .ag-cell') && esVisible(child)).map((child) => ({
+              value: normalizar(obtenerValor(child)),
+              colid: child.getAttribute('colid') || '',
+            })),
+          })).filter((fila) => fila.celdasDirectas.length > 0);
+          const esFilaPrincipalObjetivo = (fila: typeof filas[number]) => {
+            const ordenCoincide = fila.celdasDirectas.some((celda) => celda.value === orderReferenceNormalizado || (celda.colid.toUpperCase().includes('ORDER') && celda.value.includes(orderReferenceNormalizado)));
+            const itemCoincide = fila.celdasDirectas.some((celda) => celda.value === itemReferenceNormalizado || (celda.colid.toUpperCase() === 'ITEM' && celda.value === itemReferenceNormalizado));
+            return ordenCoincide && itemCoincide;
+          };
+          const esOtraFilaPrincipal = (fila: typeof filas[number]) => fila.celdasDirectas.some((celda) => celda.value === orderReferenceNormalizado) && fila.celdasDirectas.some((celda) => /^\d{3}$/.test(celda.value));
+          const indiceFilaObjetivo = filas.findIndex(esFilaPrincipalObjetivo);
+          if (indiceFilaObjetivo < 0) return { configured: false, reason: 'No se encontro la fila principal objetivo' };
+
+          const filasDetalle: HTMLElement[] = [];
+          for (const fila of filas.slice(indiceFilaObjetivo + 1)) {
+            if (esOtraFilaPrincipal(fila)) break;
+            filasDetalle.push(fila.fila);
+          }
+          const elementosDetalle = filasDetalle
+            .flatMap((fila) => [fila, ...Array.from(fila.querySelectorAll('td, th, span, div, label, input, select'))])
+            .filter(esVisible) as HTMLElement[];
+          const labelsItemsPagina = elementosDetalle
+            .filter((element) => /^ITEMS\s*\/\s*PAGINA:?$/.test(normalizar(obtenerValor(element))))
+            .sort((a, b) => b.getBoundingClientRect().top - a.getBoundingClientRect().top);
+          const labelItemsPagina = labelsItemsPagina[0];
+          if (!labelItemsPagina) return { configured: false, reason: 'No se encontro Items/Pagina dentro de Historia' };
+
+          const rectLabel = labelItemsPagina.getBoundingClientRect();
+          const controles = elementosDetalle
+            .filter((element) => element.matches('input, select'))
+            .filter((element) => {
+              const rect = element.getBoundingClientRect();
+              return Math.abs(rect.top - rectLabel.top) <= 15 && rect.left >= rectLabel.left;
+            }) as (HTMLInputElement | HTMLSelectElement)[];
+          const control = controles.sort((a, b) => a.getBoundingClientRect().left - b.getBoundingClientRect().left)[0];
+          if (!control) return { configured: false, reason: 'No se encontro control de Items/Pagina en Historia' };
+
+          control.setAttribute('data-qa-history-items-page', 'true');
+          return { found: true, previousValue: control.value, tagName: control.tagName };
+        };
+
+        const datos = { orderReference: orderReferenceCapturado, itemReference: itemOrderReferenceCapturado };
+        let resultado: any;
+        let controlItemsPagina: any;
+        if (usarFrame) {
+          const centerFrame = await obtenerFrameAsignacion();
+          if (!centerFrame) return { configured: false, reason: 'No se encontro iframe center_page en GR' };
+          resultado = await centerFrame.locator('body').evaluate(configurar, datos);
+          controlItemsPagina = centerFrame.locator('[data-qa-history-items-page="true"]').first();
+        } else {
+          resultado = await comprasPage.locator('body').evaluate(configurar, datos);
+          controlItemsPagina = comprasPage.locator('[data-qa-history-items-page="true"]').first();
+        }
+        if (!resultado.found || !controlItemsPagina) {
+          return { configured: false, ...resultado };
+        }
+        await controlItemsPagina.waitFor({ state: 'visible', timeout: 10000 });
+        if (resultado.tagName === 'SELECT') {
+          await controlItemsPagina.selectOption({ label: '100' }).catch(async () => controlItemsPagina.selectOption('100'));
+        } else {
+          await controlItemsPagina.fill('100');
+          await controlItemsPagina.press('Enter');
+        }
+        await comprasPage.waitForTimeout(7000);
+        await esperarCargaAsignacion();
+        return { configured: true, previousValue: resultado.previousValue, currentValue: '100', method: 'playwright-native' };
+      };
+      const actualizarPanelHistoria = async () => {
+        const localizarActualizar = (_body: Element, datos: { orderReference: string; itemReference: string }) => {
+          const normalizar = (valor: string) => String(valor || '').trim().replace(/\s+/g, ' ').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
+          const obtenerValor = (element: Element | null | undefined) => {
+            if (!element) return '';
+            const htmlElement = element as HTMLElement;
+            const input = element as HTMLInputElement;
+            return input.value || htmlElement.getAttribute('value') || htmlElement.innerText || htmlElement.textContent || '';
+          };
+          const esVisible = (element: Element) => {
+            const rect = (element as HTMLElement).getBoundingClientRect();
+            return rect.width > 0 && rect.height > 0;
+          };
+          const orderReferenceNormalizado = normalizar(datos.orderReference);
+          const itemReferenceNormalizado = normalizar(datos.itemReference);
+          const filas = Array.from(document.querySelectorAll('.ag-row, tr')).filter(esVisible).map((fila) => ({
+            fila: fila as HTMLElement,
+            celdasDirectas: Array.from(fila.children).filter((child) => child.matches('td, th, [colid], .ag-cell') && esVisible(child)).map((child) => ({
+              value: normalizar(obtenerValor(child)),
+              colid: child.getAttribute('colid') || '',
+            })),
+          })).filter((fila) => fila.celdasDirectas.length > 0);
+          const esFilaPrincipalObjetivo = (fila: typeof filas[number]) => {
+            const ordenCoincide = fila.celdasDirectas.some((celda) => celda.value === orderReferenceNormalizado || (celda.colid.toUpperCase().includes('ORDER') && celda.value.includes(orderReferenceNormalizado)));
+            const itemCoincide = fila.celdasDirectas.some((celda) => celda.value === itemReferenceNormalizado || (celda.colid.toUpperCase() === 'ITEM' && celda.value === itemReferenceNormalizado));
+            return ordenCoincide && itemCoincide;
+          };
+          const esOtraFilaPrincipal = (fila: typeof filas[number]) => fila.celdasDirectas.some((celda) => celda.value === orderReferenceNormalizado) && fila.celdasDirectas.some((celda) => /^\d{3}$/.test(celda.value));
+          const indiceFilaObjetivo = filas.findIndex(esFilaPrincipalObjetivo);
+          if (indiceFilaObjetivo < 0) return { found: false, reason: 'No se encontro la fila principal objetivo' };
+
+          const filasDetalle: HTMLElement[] = [];
+          for (const fila of filas.slice(indiceFilaObjetivo + 1)) {
+            if (esOtraFilaPrincipal(fila)) break;
+            filasDetalle.push(fila.fila);
+          }
+          const candidatos = filasDetalle
+            .flatMap((fila) => Array.from(fila.querySelectorAll('input, button, a')))
+            .filter(esVisible)
+            .filter((element) => /^ACTUALIZAR$/.test(normalizar(obtenerValor(element)))) as HTMLElement[];
+          const botonActualizar = candidatos[0];
+          if (!botonActualizar) return { found: false, reason: 'No se encontro el boton Actualizar dentro de Historia' };
+          botonActualizar.setAttribute('data-qa-history-update', 'true');
+          return { found: true, candidates: candidatos.length };
+        };
+
+        const datos = { orderReference: orderReferenceCapturado, itemReference: itemOrderReferenceCapturado };
+        let resultado: any;
+        let botonActualizar: any;
+        if (usarFrame) {
+          const centerFrame = await obtenerFrameAsignacion();
+          if (!centerFrame) return { clicked: false, reason: 'No se encontro iframe center_page en GR' };
+          resultado = await centerFrame.locator('body').evaluate(localizarActualizar, datos);
+          botonActualizar = centerFrame.locator('[data-qa-history-update="true"]').first();
+        } else {
+          resultado = await comprasPage.locator('body').evaluate(localizarActualizar, datos);
+          botonActualizar = comprasPage.locator('[data-qa-history-update="true"]').first();
+        }
+        if (!resultado.found || !botonActualizar) return { clicked: false, ...resultado };
+        await botonActualizar.waitFor({ state: 'visible', timeout: 10000 });
+        await botonActualizar.click({ timeout: 10000 });
+        await comprasPage.waitForTimeout(7000);
+        await esperarCargaAsignacion();
+        return { clicked: true, method: 'history-update-button', candidates: resultado.candidates };
+      };
+      const desplazarHistoriaAlFinal = async () => {
+        const desplazar = (_body: Element, datos: { orderReference: string; itemReference: string }) => {
+          const normalizar = (valor: string) => String(valor || '').trim().replace(/\s+/g, ' ').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
+          const obtenerValor = (element: Element | null | undefined) => {
+            if (!element) return '';
+            const htmlElement = element as HTMLElement;
+            const input = element as HTMLInputElement;
+            return input.value || htmlElement.getAttribute('title') || htmlElement.getAttribute('aria-label') || htmlElement.innerText || htmlElement.textContent || '';
+          };
+          const esVisible = (element: Element) => {
+            const rect = (element as HTMLElement).getBoundingClientRect();
+            return rect.width > 0 && rect.height > 0;
+          };
+          const orderReferenceNormalizado = normalizar(datos.orderReference);
+          const itemReferenceNormalizado = normalizar(datos.itemReference);
+          const filas = Array.from(document.querySelectorAll('.ag-row, tr')).filter(esVisible).map((fila) => ({
+            fila: fila as HTMLElement,
+            celdasDirectas: Array.from(fila.children).filter((child) => child.matches('td, th, [colid], .ag-cell') && esVisible(child)).map((child) => ({
+              value: normalizar(obtenerValor(child)),
+              colid: child.getAttribute('colid') || '',
+            })),
+          })).filter((fila) => fila.celdasDirectas.length > 0);
+          const esFilaPrincipalObjetivo = (fila: typeof filas[number]) => {
+            const ordenCoincide = fila.celdasDirectas.some((celda) => celda.value === orderReferenceNormalizado || (celda.colid.toUpperCase().includes('ORDER') && celda.value.includes(orderReferenceNormalizado)));
+            const itemCoincide = fila.celdasDirectas.some((celda) => celda.value === itemReferenceNormalizado || (celda.colid.toUpperCase() === 'ITEM' && celda.value === itemReferenceNormalizado));
+            return ordenCoincide && itemCoincide;
+          };
+          const esOtraFilaPrincipal = (fila: typeof filas[number]) => fila.celdasDirectas.some((celda) => celda.value === orderReferenceNormalizado) && fila.celdasDirectas.some((celda) => /^\d{3}$/.test(celda.value));
+          const indiceFilaObjetivo = filas.findIndex(esFilaPrincipalObjetivo);
+          if (indiceFilaObjetivo < 0) return { scrolled: false, reason: 'No se encontro la fila principal objetivo' };
+
+          const filasDetalle: HTMLElement[] = [];
+          for (const fila of filas.slice(indiceFilaObjetivo + 1)) {
+            if (esOtraFilaPrincipal(fila)) break;
+            filasDetalle.push(fila.fila);
+          }
+          const elementosDetalle = filasDetalle
+            .flatMap((fila) => [fila, ...Array.from(fila.querySelectorAll('*'))])
+            .filter(esVisible) as HTMLElement[];
+          const elementosHistoria = elementosDetalle.filter((element) => {
+            const valor = normalizar(obtenerValor(element));
+            return /^HISTORIA$/.test(valor) || /^CHANGED\s*BY:?$/.test(valor) || /^NEW\s*VALUE:?$/.test(valor);
+          });
+          const candidatos = new Set<HTMLElement>();
+          for (const elemento of elementosHistoria) {
+            let actual: HTMLElement | null = elemento;
+            while (actual && actual !== document.body) {
+              if (actual.scrollHeight > actual.clientHeight + 5) candidatos.add(actual);
+              actual = actual.parentElement;
+            }
+          }
+          for (const elemento of elementosDetalle) {
+            const style = window.getComputedStyle(elemento);
+            if (elemento.scrollHeight > elemento.clientHeight + 5 && /auto|scroll/.test(style.overflowY)) {
+              candidatos.add(elemento);
+            }
+          }
+          const contenedores = Array.from(candidatos).sort((a, b) =>
+            (b.scrollHeight - b.clientHeight) - (a.scrollHeight - a.clientHeight)
+          );
+          if (contenedores.length === 0) return { scrolled: false, reason: 'No se encontro contenedor vertical de Historia' };
+
+          for (const contenedor of contenedores) {
+            contenedor.scrollTop = contenedor.scrollHeight;
+            contenedor.dispatchEvent(new Event('scroll', { bubbles: true }));
+          }
+          const principal = contenedores[0];
+          return {
+            scrolled: principal.scrollTop > 0,
+            scrollTop: principal.scrollTop,
+            scrollHeight: principal.scrollHeight,
+            clientHeight: principal.clientHeight,
+            containers: contenedores.length,
+          };
+        };
+
+        const datos = { orderReference: orderReferenceCapturado, itemReference: itemOrderReferenceCapturado };
+        let resultado: any;
+        if (usarFrame) {
+          const centerFrame = await obtenerFrameAsignacion();
+          if (!centerFrame) return { scrolled: false, reason: 'No se encontro iframe center_page en GR' };
+          resultado = await centerFrame.locator('body').evaluate(desplazar, datos);
+        } else {
+          resultado = await comprasPage.locator('body').evaluate(desplazar, datos);
+        }
+        if (resultado.scrolled) await comprasPage.waitForTimeout(3000);
+        return resultado;
+      };
       const obtenerHistoriaNewValue = async () => {
         const extraerHistoria = (elements: Element[], datos: { orderReference: string; itemReference: string; adjustedName: string; changedByEsperado: string; logDateEsperado: string }) => {
           const normalizar = (valor: string) => String(valor || '').trim().replace(/\s+/g, ' ').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
@@ -729,9 +967,24 @@ test.describe('Modulo Bulk Changes - Flujo principal Product Name', () => {
         await comprasPage.waitForTimeout(5000);
         const resultadoTabHistoria: any = await clickTabHistoriaAsignacion();
         await comprasPage.waitForTimeout(2000);
+        const resultadoItemsPaginaHistoria: any = await configurarItemsPaginaHistoria();
+        expect(
+          resultadoItemsPaginaHistoria.configured,
+          `Debe configurar Items/Pagina=100 dentro de Historia para ${orderReferenceCapturado}-${itemOrderReferenceCapturado}. Resultado: ${JSON.stringify(resultadoItemsPaginaHistoria)}`
+        ).toBeTruthy();
+        const resultadoActualizarHistoria: any = await actualizarPanelHistoria();
+        expect(
+          resultadoActualizarHistoria.clicked,
+          `Debe presionar Actualizar dentro de Historia despues de configurar Items/Pagina=100. Resultado: ${JSON.stringify(resultadoActualizarHistoria)}`
+        ).toBeTruthy();
+        const resultadoScrollHistoria: any = await desplazarHistoriaAlFinal();
+        expect(
+          resultadoScrollHistoria.scrolled,
+          `Debe desplazar Historia hasta los cambios mas recientes para ${orderReferenceCapturado}-${itemOrderReferenceCapturado}. Resultado: ${JSON.stringify(resultadoScrollHistoria)}`
+        ).toBeTruthy();
         ultimoResultadoHistoria = await obtenerHistoriaNewValue();
         await tomarScreenshotPagina(comprasPage, `reports/screenshots/16d-betagr-asignacion-historia-intento-${intento}.png`);
-        fs.writeFileSync(`reports/html/16-betagr-product-name-historia-intento-${intento}.json`, JSON.stringify({ expansion: resultadoExpansion, tabHistoria: resultadoTabHistoria, historia: ultimoResultadoHistoria, adjustedName: adjustedNameAsignado }, null, 2));
+        fs.writeFileSync(`reports/html/16-betagr-product-name-historia-intento-${intento}.json`, JSON.stringify({ expansion: resultadoExpansion, tabHistoria: resultadoTabHistoria, itemsPaginaHistoria: resultadoItemsPaginaHistoria, actualizarHistoria: resultadoActualizarHistoria, scrollHistoria: resultadoScrollHistoria, historia: ultimoResultadoHistoria, adjustedName: adjustedNameAsignado }, null, 2));
         historiaValidada = !!resultadoTabHistoria.clicked
           && !!ultimoResultadoHistoria.historiaVisible
           && !!ultimoResultadoHistoria.changedByCoincide

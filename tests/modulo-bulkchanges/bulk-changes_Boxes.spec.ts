@@ -1237,6 +1237,88 @@ test.describe('Módulo Bulk Changes — Flujo principal', () => {
         `El campo TOTAL de Asignación de ordenes debe coincidir con el valor BOXES ${valorBoxesEsperado} para ${orderReferenceCapturado}-${itemOrderReferenceCapturado}`
       ).toBeTruthy();
 
+      const resaltarFilaBoxesValidada = async () => {
+        const resaltar = async (locatorBase: any) => locatorBase.evaluateAll(
+          (filas: Element[], datos: { orderReference: string; itemReference: string }) => {
+            const normalizar = (valor: string) => String(valor || '')
+              .trim()
+              .replace(/\s+/g, ' ')
+              .normalize('NFD')
+              .replace(/[\u0300-\u036f]/g, '')
+              .toUpperCase();
+            const itemCoincide = (valor: string) => {
+              const actual = normalizar(valor);
+              const esperado = normalizar(datos.itemReference);
+              return actual === esperado || String(Number(actual)) === String(Number(esperado));
+            };
+
+            for (const fila of filas) {
+              const filaHtml = fila as HTMLElement;
+              const rect = filaHtml.getBoundingClientRect();
+              if (rect.width <= 0 || rect.height <= 0) continue;
+
+              const celdas = Array.from(fila.children)
+                .filter((child) => child.matches('td, th, [colid], .ag-cell')) as HTMLElement[];
+              const valores = celdas.map((celda) => normalizar(
+                (celda as HTMLInputElement).value
+                || celda.getAttribute('value')
+                || celda.innerText
+                || celda.textContent
+                || ''
+              ));
+              const indiceOrden = celdas.findIndex((celda, indice) =>
+                /order/i.test(celda.getAttribute('colid') || '')
+                || valores[indice] === normalizar(datos.orderReference)
+              );
+              const celdaItem = celdas.find((celda) => /^item$/i.test(celda.getAttribute('colid') || ''))
+                || (indiceOrden >= 0 ? celdas[indiceOrden + 1] : undefined);
+              const valorItem = celdaItem
+                ? normalizar(
+                  (celdaItem as HTMLInputElement).value
+                  || celdaItem.getAttribute('value')
+                  || celdaItem.innerText
+                  || celdaItem.textContent
+                  || ''
+                )
+                : '';
+              const coincideOrden = indiceOrden >= 0 && valores[indiceOrden] === normalizar(datos.orderReference);
+              const coincideItem = itemCoincide(valorItem);
+              if (!coincideOrden || !coincideItem) continue;
+
+              filaHtml.style.outline = '4px solid #0057d8';
+              filaHtml.style.outlineOffset = '-2px';
+              filaHtml.style.backgroundColor = '#dbeafe';
+              celdas.forEach((celda) => {
+                celda.style.backgroundColor = '#dbeafe';
+                celda.style.borderTop = '3px solid #0057d8';
+                celda.style.borderBottom = '3px solid #0057d8';
+              });
+              if (celdas.length > 0) {
+                celdas[0].style.borderLeft = '3px solid #0057d8';
+                celdas[celdas.length - 1].style.borderRight = '3px solid #0057d8';
+              }
+              filaHtml.scrollIntoView({ block: 'center', inline: 'nearest' });
+              return true;
+            }
+
+            return false;
+          },
+          { orderReference: orderReferenceCapturado, itemReference: itemOrderReferenceCapturado }
+        );
+
+        if (usarFrame) {
+          const centerFrame = await obtenerFrameAsignacion();
+          if (!centerFrame) return false;
+          return resaltar(centerFrame.locator('tr, .ag-row'));
+        }
+        return resaltar(comprasPage.locator('tr, .ag-row'));
+      };
+
+      const filaBoxesResaltada = await resaltarFilaBoxesValidada();
+      expect(
+        filaBoxesResaltada,
+        `Debe poder resaltar toda la fila validada de Boxes para ${orderReferenceCapturado}-${itemOrderReferenceCapturado}`
+      ).toBeTruthy();
       await comprasPage.waitForTimeout(1000);
       await tomarScreenshotPagina(comprasPage, 'reports/screenshots/17-betagr-cambio-gr-confirmado.png');
 

@@ -60,7 +60,7 @@ Validar que el cambio masivo de `Product - Flowers` realizado en QU desde `Sales
 40. Comparar el `Code` guardado desde `Products Definition` contra `Codigo Flor`.
 41. Si `Codigo Flor` no coincide o el detalle no queda desplegado, repetir el proceso completo hasta 5 intentos.
 42. La coincidencia en GR debe salir del bloque de detalle asociado a la fila principal del item capturado; no se permite usar una busqueda global en toda la pantalla.
-43. Tan pronto se valide la coincidencia, guardar la evidencia visual del detalle expandido en GR usando `17-betagr-product-flowers-confirmado.png`, con resaltado azul sobre la fila completa de `Receta del Producto` donde `Codigo Flor` coincide con el `Code` guardado, y dejar que Playwright cierre el navegador al finalizar.
+43. Tan pronto se valide la coincidencia, guardar la evidencia visual del detalle expandido en GR usando `17-betagr-product-flowers-confirmado.png`, con un marco azul que incluya la fila principal exacta de la orden-item y su tabla `Receta del Producto` completa, terminando antes de `Comentarios` y `Asignacion`.
 44. Generar el documento Word con las capturas recientes de la ejecucion.
 
 ## Reglas de validacion
@@ -84,7 +84,12 @@ Validar que el cambio masivo de `Product - Flowers` realizado en QU desde `Sales
 - En BETA GR, cada intento debe consultar la orden, ubicar la linea por prefijo de orden e item capturados, abrir el detalle con el boton `+` y luego comparar `Codigo Flor`.
 - En BETA GR, despues de consultar por prefijo con el filtro `Todos`, la prueba debe cambiar siempre el filtro `Fecha` a `UC`, ejecutar `Actualizar` nuevamente y solo despues continuar con la expansion de la fila.
 - En BETA GR, la lectura de `Codigo Flor` debe hacerse dentro del bloque expandido de la fila principal objetivo, identificando el encabezado `Codigo Flor`/`Codigo` con tilde o sin tilde y tomando los valores alineados bajo esa columna hasta `Comentarios`.
-- La evidencia final de BETA GR debe resaltar la fila completa de la tabla `Receta del Producto` donde la columna `Codigo Flor` coincide exactamente con el `Code` capturado; no basta con resaltar una celda o una coincidencia de texto fuera de esa tabla.
+- La evidencia final de BETA GR debe dibujar un unico marco azul desde la fila principal exacta de la orden-item modificada hasta el borde inferior de su tabla `Receta del Producto`.
+- El marco debe incluir toda la tabla de receta que contiene la columna `Codigo Flor` y el `Code` capturado, no solamente la fila interna donde aparece el codigo.
+- El marco no debe incluir las secciones posteriores `Comentarios` ni `Asignacion`.
+- La fila principal debe identificarse usando las celdas reales `Orden#` e `Item`; el numero del item no puede validarse contra valores de otras columnas o del detalle expandido.
+- Si no se encuentra la orden-item exacta o una tabla de receta asociada que contenga el `Codigo Flor` esperado, la prueba debe fallar antes de generar la captura final.
+- Esta regla visual aplica solamente a Product Flowers y no debe propagarse a otros escenarios de Bulk Changes.
 - En BETA GR, el item debe compararse contra celdas directas de la fila principal. Textos dentro de detalles expandidos, como `Q002`, no deben tomarse como coincidencia del item `002`.
 - En BETA GR, las celdas pueden exponer el valor real en el atributo `title`; si `textContent` esta vacio o solo tiene espacios, la prueba debe leer `title` para comparar orden, item y columnas de receta.
 - En BETA GR, si ya hay otra fila expandida, la prueba no debe usar esa receta como valida a menos que pertenezca a la fila principal del item capturado.
@@ -187,13 +192,13 @@ Esta regla solo aplica para el documento Word de `bulk-changes_Product -Flowers.
 - `reports/screenshots/15-betagr-inicio.png`
 - `reports/screenshots/16b-betagr-asignacion-filtro-uc.png` despues de aplicar `Fecha = UC`
 - `reports/screenshots/16d-betagr-asignacion-expandida-intento-1.png`
-- `reports/screenshots/17-betagr-product-flowers-confirmado.png`
+- `reports/screenshots/17-betagr-product-flowers-confirmado.png`, con la orden-item y solamente su tabla `Receta del Producto` enmarcadas en azul
 
 Las evidencias de `Order Entry / Products Definition` deben quedar antes de cualquier evidencia de BETA GR en el documento Word. Por eso las capturas de BETA GR deben iniciar despues de `14b-products-definition-product-flowers-confirmado.png`.
 
 Para Product Flowers, el documento Word no debe usar `IncludeAllBaseNames`; debe usar la lista cerrada anterior. No se deben aplicar filtros de imagen heredados de otros casos de Bulk Changes, porque cada prueba tiene su propio criterio de evidencia.
 
-La evidencia `17-betagr-product-flowers-confirmado.png` es la captura oficial para la validacion final en GR. No se debe generar ni incluir una captura adicional `18-betagr-product-flowers-evidencia-gr.png`, porque la evidencia requerida ya esta contenida en la imagen `17`.
+La evidencia `17-betagr-product-flowers-confirmado.png` es la captura oficial para la validacion final en GR. El marco azul debe comenzar en la fila principal de la orden-item y terminar al finalizar la tabla `Receta del Producto`, dejando fuera `Comentarios` y `Asignacion`. No se debe generar ni incluir una captura adicional `18-betagr-product-flowers-evidencia-gr.png`, porque la evidencia requerida ya esta contenida en la imagen `17`.
 
 ## Diagnosticos esperados
 
@@ -279,7 +284,8 @@ npm.cmd run test:bulkchanges:productflowers:visible:word:video
 - En GR, despues de consultar con el prefijo y filtro `Todos`, se cambia siempre `Fecha` a `UC` y se vuelve a consultar antes de expandir la fila.
 - El valor `Codigo Flor` de GR coincide con el `Code` guardado desde `Products Definition`.
 - La consulta, expansion con `+` y comparacion de `Codigo Flor` se repiten solo cuando los valores no coinciden, hasta un maximo de 5 intentos.
-- Tan pronto se valida la coincidencia, se guarda la evidencia final y se cierra Chrome.
+- Tan pronto se valida la coincidencia, se enmarca la fila exacta junto con su tabla `Receta del Producto`, se confirma que el marco fue creado y se guarda la evidencia final.
+- La evidencia final excluye las secciones `Comentarios` y `Asignacion` del marco azul.
 - Se genera el documento Word en la ruta esperada.
 - Cuando se ejecuta con video, se genera el archivo `.webm` en la ruta esperada.
 - Si ya existe un video del mismo dia, se reemplaza por el de la ultima ejecucion.
@@ -289,5 +295,40 @@ npm.cmd run test:bulkchanges:productflowers:visible:word:video
 
 ---
 
+## Ajuste 2026-09-22 - Marco de orden-item y Receta del Producto
+
+La evidencia final de GR debe identificar la fila principal mediante la combinacion exacta `Orden#` + `Item`. Despues debe localizar la tabla asociada que contiene el encabezado `Codigo Flor` y el `Code` validado en `Products Definition`.
+
+El borde azul `#0057d8` debe abarcar desde la fila principal hasta el borde inferior de esa tabla de receta. Las secciones `Comentarios` y `Asignacion` deben quedar fuera. Si no se puede construir este marco exacto, la prueba debe fallar antes de guardar `17-betagr-product-flowers-confirmado.png`.
+
+Este comportamiento pertenece solamente a Product Flowers.
+
+### Ejecucion validada 2026-09-22
+
+Comando ejecutado:
+
+```powershell
+npm.cmd run test:bulkchanges:productflowers:visible:word
+```
+
+Resultado:
+
+- Estado: exitoso, `1 passed`.
+- Duracion aproximada: `3.8m`.
+- Ambiente: BETA / `https://betaqu.ghtcorptest.com`.
+- Orden-item seleccionada y validada: `PD7028-001`.
+- Color actual y asignado: `Red`.
+- Variety modificada: `Freedom` a `Beloved°`.
+- Validacion Products Definition: `Red / Beloved°`.
+- `Code` capturado: `1AL1`.
+- Validacion BETA GR: `Codigo Flor=1AL1` dentro de la receta asociada a `PD7028-001`.
+- Resultado del resaltado: `highlighted=true` para `PD7028-001`.
+- Evidencia revisada visualmente: el marco incluye la fila principal y toda la tabla `Receta del Producto`; `Comentarios` y `Asignacion` quedaron fuera.
+- Documento generado: `C:\Users\DianaSPS\Documents\Pruebas Bulk Changes\Bulk-changes-ProductFlowers_20260922.docx`.
+- Imagenes incluidas en el documento: `14`.
+- Error de `qa_metrics`: no bloqueante para la validacion funcional.
+
+---
+
 *webflowers-qa-automation - tests/specs-fuente/modulo-bulkchanges/bulk-changes_ProductFlowers.md*
-*Actualizado: 2026-09-08*
+*Actualizado: 2026-09-22*

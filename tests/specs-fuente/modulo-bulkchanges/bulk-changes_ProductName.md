@@ -43,13 +43,16 @@ El documento de evidencias debe generarse automaticamente en Word al finalizar l
 24. Presionar el boton `+` de la fila encontrada para desplegar el detalle.
 25. Hacer clic explicitamente en la pestana `Historia` del detalle expandido.
 26. Confirmar que el detalle quede expandido y la pestana `Historia` quede visible/activa.
-27. Leer, en la ultima fila del bloque generado donde la columna `Changed By` sea igual a `BK - Diana Davila`, la columna `Log Date` sea igual a la fecha actual en formato `MM/DD/YYYY` y la columna `Field Name` sea igual a `Product Name`, el valor visible en la columna `New Value` de la seccion `Historia`.
-28. Comparar el `Adjusted Name` guardado contra `New Value`.
-29. Si `Adjusted Name` no coincide o el detalle no queda desplegado, repetir el proceso completo hasta 5 intentos.
-30. La coincidencia en GR debe salir del bloque de detalle asociado a la fila principal del item capturado; no se permite usar una busqueda global en toda la pantalla.
-31. Tan pronto se valide la coincidencia, guardar la evidencia visual del detalle expandido en GR con la pestana `Historia` activa y la celda `New Value` validada resaltada.
-32. Dejar que Playwright cierre el navegador al finalizar.
-33. Generar el documento Word con las capturas recientes de la ejecucion.
+27. En la seccion `Historia` del detalle expandido, cambiar el control local `Items/Pagina` a `100`.
+28. Presionar el boton `Actualizar` de la misma seccion `Historia` para recargar el historico con el nuevo tamano de pagina.
+29. Desplazar el scroll vertical interno de `Historia` hasta que el registro del cambio quede visible.
+30. Leer, en la ultima fila del bloque generado donde la columna `Changed By` sea igual a `BK - Diana Davila`, la columna `Log Date` sea igual a la fecha actual en formato `MM/DD/YYYY` y la columna `Field Name` sea igual a `Product Name`, el valor visible en la columna `New Value` de la seccion `Historia`.
+31. Comparar el `Adjusted Name` guardado contra `New Value`.
+32. Si `Adjusted Name` no coincide o el detalle no queda desplegado, repetir el proceso completo hasta 5 intentos.
+33. La coincidencia en GR debe salir del bloque de detalle asociado a la fila principal del item capturado; no se permite usar una busqueda global en toda la pantalla.
+34. Tan pronto se valide la coincidencia, guardar la evidencia visual del detalle expandido en GR con la pestana `Historia` activa y la celda `New Value` validada resaltada.
+35. Dejar que Playwright cierre el navegador al finalizar.
+36. Generar el documento Word con las capturas recientes de la ejecucion.
 
 ## Reglas de validacion
 
@@ -62,6 +65,9 @@ El documento de evidencias debe generarse automaticamente en Word al finalizar l
 - El valor aplicado debe visualizarse en `Order Entry` en el campo `Product`.
 - En BETA GR, la validacion debe hacerse dentro del detalle expandido de la fila principal que coincida con el prefijo y el item capturados.
 - En BETA GR, la pestana `Historia` debe abrirse con clic explicito antes de leer `New Value`; no es valido quedarse en `Receta del Producto`.
+- En BETA GR, dentro de `Historia`, el control local `Items/Pagina` debe configurarse en `100` para incluir historicos extensos de la orden.
+- Despues de cambiar `Items/Pagina` a `100`, se debe presionar el boton `Actualizar` propio de `Historia`; no es suficiente actualizar la grilla principal.
+- La lectura de `New Value` debe hacerse despues de desplazar el scroll interno de `Historia` hasta el punto donde el registro del cambio sea visible.
 - En BETA GR, el filtro `Fecha` debe cambiarse a `UC` antes de validar `Historia`.
 - El valor de `New Value` en la ultima fila de `Historia` cuyo `Changed By` sea igual a `BK - Diana Davila`, cuyo `Log Date` sea igual a la fecha actual en formato `MM/DD/YYYY` y cuyo `Field Name` sea igual a `Product Name` debe coincidir con el `Adjusted Name` asignado.
 - La validacion en GR puede requerir reintentos por latencia de propagacion, hasta un maximo de 5 intentos.
@@ -164,6 +170,7 @@ npm.cmd run test:bulkchanges:productname:visible
 - El cambio `Product Name` queda confirmado con `Apply`.
 - El valor `Adjusted Name` se valida en `Order Entry` como `Product`.
 - En BETA GR se consulta `Compras -> Asignacion de ordenes`, se cambia `Fecha` a `UC`, se expande la fila principal del item capturado con `+` y se visualiza `Historia`.
+- En `Historia`, el test configura `Items/Pagina` en `100`, presiona el boton `Actualizar` de esa seccion y desplaza el scroll interno hasta visualizar el registro validado.
 - El valor `New Value` de la ultima fila de `Historia` cuyo `Changed By` sea igual a `BK - Diana Davila`, cuyo `Log Date` sea igual a la fecha actual en formato `MM/DD/YYYY` y cuyo `Field Name` sea igual a `Product Name` coincide con el `Adjusted Name` asignado y queda resaltado en la evidencia visual.
 - La validacion de `New Value` se hace dentro del detalle asociado a la fila principal del item capturado.
 - Se genera el documento Word en la ruta esperada.
@@ -203,4 +210,38 @@ Resultado:
 - Fila de Historia validada: `Changed By = BK - Diana Davila`, `Log Date = 09/10/2026`, `Field Name = Product Name`.
 - `New Value` validado: `PHOENIX - POM 9 PRUEBAS QA 2026/09/10 16:29:29`.
 - Documento generado: `C:\Users\DianaSPS\Documents\Pruebas Bulk Changes\Bulk-changes-ProductName_20260910.docx`.
+- Imagenes incluidas en el documento: `10`.
+
+## Ajuste 2026-09-22 - Historia extensa para Product Name
+
+Cuando la pestana `Historia` del detalle de la orden tenga demasiados registros, la validacion de `Product Name` debe ampliar el numero de filas visibles antes de buscar el cambio.
+
+Despues de abrir `Historia` en el detalle asociado al prefijo e item capturados, el test debe:
+
+- Configurar el control local `Items/Pagina` en `100`.
+- Presionar el boton `Actualizar` dentro de la seccion `Historia`.
+- Esperar la recarga del historico.
+- Desplazar el scroll vertical interno de `Historia` hasta que el registro del cambio quede visible.
+- Validar la fila cuyo `Changed By` sea `BK - Diana Davila`, `Log Date` sea la fecha actual y `Field Name` sea `Product Name`.
+
+Este ajuste aplica solo a esta prueba de `Product Name`. No debe reutilizarse en otros specs-fuente sin una solicitud explicita.
+
+### Ejecucion validada 2026-09-22
+
+Comando ejecutado:
+
+```powershell
+npm.cmd run test:bulkchanges:productname:visible:word
+```
+
+Resultado:
+
+- Estado: exitoso, `1 passed`.
+- Orden seleccionada: `PD7028-001`.
+- Prefijo usado para validaciones: `PD7028`.
+- Item validado en GR: `001`.
+- `Product Name` base capturado: `1800-20533 RD/O`.
+- `Adjusted Name` aplicado: `1800-20533 RD/O PRUEBAS QA 2026/09/22 10:53:26`.
+- Validacion BETA GR: `Historia` configurada con `Items/Pagina = 100`, boton `Actualizar` presionado y scroll interno desplazado hasta visualizar el registro `Product Name`.
+- Documento generado: `C:\Users\DianaSPS\Documents\Pruebas Bulk Changes\Bulk-changes-ProductName_20260922_105653.docx`.
 - Imagenes incluidas en el documento: `10`.

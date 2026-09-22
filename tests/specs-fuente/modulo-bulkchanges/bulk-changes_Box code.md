@@ -56,6 +56,7 @@ Artefactos generados:
 - Credenciales y URL: `ENV.url`, `ENV.usuario`, `ENV.password`
 - `orderReferenceCapturado`: prefijo de 6 caracteres extraido desde Bulk Changes, formato `XX####`
 - `orderReferenceCompletoCapturado`: referencia completa capturada desde el primer registro que cumpla la condicion de tener un Box Code disponible diferente al actual
+- `itemOrderReferenceCapturado`: item extraido de la referencia completa y reutilizado para identificar la misma fila en BETA GR
 - `valorBoxCodeActual`: Box Code capturado desde la fila seleccionada antes de aplicar el cambio
 - `valorBoxCodeAsignado`: codigo seleccionado desde el select del modal `Set Box Code Parameters`, iniciando en el segundo codigo disponible, saltando al siguiente si coincide con `valorBoxCodeActual`, y recorriendo filas visibles si el registro actual no tiene una opcion diferente
 - `maxIntentosAsignacion`: 5 intentos para validar `Caja`
@@ -207,13 +208,19 @@ Artefactos generados:
 - Se compara exactamente la columna `Caja` de la fila objetivo contra `valorBoxCodeAsignado`.
 - Si la fila objetivo no se encuentra o `Caja` no coincide, se refresca la busqueda y se espera 30 segundos antes del siguiente intento.
 - Maximo de intentos: 5.
+- Despues de confirmar `Caja`, la evidencia final debe localizar nuevamente la fila mediante las celdas reales de las columnas `Orden#` e `Item`.
+- La prueba debe resaltar toda la fila de la orden-item modificada, no solamente la celda `Caja`.
+- El resaltado debe usar borde azul `#0057d8` alrededor de la fila completa y fondo azul claro `#dbeafe` en todas sus celdas.
+- El numero del item solo puede compararse contra la celda `Item`; no se deben aceptar coincidencias con valores numericos de otras columnas.
+- Si no se puede localizar y resaltar la fila exacta, la prueba debe fallar antes de generar la evidencia final.
+- Esta regla de resaltado de fila completa aplica solamente a la prueba de Box Code.
 - Al coincidir, se cierran `comprasPage` y `page`, y el test finaliza.
 - Evidencias por intento:
   - `reports/html/16-betagr-caja-candidatos-intento-{intento}.json`
   - `reports/screenshots/16-betagr-asignacion-refresh-{intento}.png`
 - Evidencia final:
   - `reports/screenshots/17-betagr-box-code-confirmado.png`
-  - `reports/screenshots/18-betagr-box-code-evidencia-gr.png`
+  - `reports/screenshots/18-betagr-box-code-evidencia-gr.png`, con toda la fila de la orden-item modificada resaltada en azul
 
 ---
 
@@ -286,12 +293,15 @@ Artefactos generados:
 44. Comparar exactamente `Caja` contra el Box Code asignado en QU.
 45. Si la fila no aparece o `Caja` no coincide, refrescar la busqueda y esperar 30 segundos antes del siguiente intento.
 46. Reintentar hasta un maximo de 5 intentos.
-47. Cuando `Caja` coincida en la fila exacta, tomar evidencia final natural en GR.
-48. Cerrar las paginas del navegador y finalizar el test.
+47. Cuando `Caja` coincida, localizar nuevamente la fila mediante las columnas `Orden#` e `Item`.
+48. Resaltar toda la fila exacta con borde azul y fondo azul claro.
+49. Fallar la prueba si no se puede resaltar la fila de la orden-item modificada.
+50. Tomar `18-betagr-box-code-evidencia-gr.png` con la fila completa resaltada.
+51. Cerrar las paginas del navegador y finalizar el test.
 
 ### Resultado esperado
 
-El cambio masivo de Box Code se aplica correctamente en Bulk Changes, el valor queda visible en Order Entry y el campo `Caja` en BETA GR coincide con el Box Code asignado desde QU. Si el registro seleccionado no tiene una opcion diferente disponible, el test debe evaluar los siguientes registros visibles hasta encontrar uno que permita un cambio real. En BETA GR, la prueba cambia siempre `Fecha` a `UC` despues de aplicar el rango de fechas del mes actual y antes de validar `Caja`. Si ninguna fila visible cumple, debe finalizar con el mensaje: `No es posible encontrar una Order Reference que cumpla con las condiciones para realizar la prueba`.
+El cambio masivo de Box Code se aplica correctamente en Bulk Changes, el valor queda visible en Order Entry y el campo `Caja` en BETA GR coincide con el Box Code asignado desde QU para la misma orden-item. La evidencia final resalta en azul toda la fila modificada. Si el registro seleccionado no tiene una opcion diferente disponible, el test debe evaluar los siguientes registros visibles hasta encontrar uno que permita un cambio real. En BETA GR, la prueba cambia siempre `Fecha` a `UC` despues de aplicar el rango de fechas del mes actual y antes de validar `Caja`. Si ninguna fila visible cumple, debe finalizar con el mensaje: `No es posible encontrar una Order Reference que cumpla con las condiciones para realizar la prueba`.
 
 ### Evidencias del caso
 
@@ -320,7 +330,7 @@ El cambio masivo de Box Code se aplica correctamente en Bulk Changes, el valor q
 - `reports/screenshots/16-betagr-asignacion-item-{item}-pagina-{pagina}.png`, si aplica
 - `reports/screenshots/16-betagr-asignacion-refresh-{intento}.png`
 - `reports/screenshots/17-betagr-box-code-confirmado.png`
-- `reports/screenshots/18-betagr-box-code-evidencia-gr.png`
+- `reports/screenshots/18-betagr-box-code-evidencia-gr.png`, con la fila exacta de la orden-item resaltada en azul
 
 ### Diagnosticos
 
@@ -434,6 +444,39 @@ Resultado:
 
 ---
 
+## Ajuste 2026-09-22 - Resaltado de fila por orden-item en GR
+
+Despues de validar que `Caja` coincide con el Box Code aplicado, la prueba debe localizar nuevamente la fila usando las columnas reales `Orden#` e `Item`. La captura `18-betagr-box-code-evidencia-gr.png` debe mostrar toda esa fila con borde azul `#0057d8` y fondo azul claro `#dbeafe`.
+
+La busqueda del item se restringe a su celda correspondiente para evitar coincidencias con valores de otras columnas. Si la fila exacta no puede resaltarse, la prueba debe fallar antes de generar la evidencia. Este comportamiento aplica solamente a Box Code.
+
+### Ejecucion validada 2026-09-22
+
+Comando ejecutado:
+
+```powershell
+npm.cmd run test:bulkchanges:boxcode:visible:word
+```
+
+Resultado:
+
+- Estado: exitoso, `1 passed`.
+- Duracion aproximada: `2.8m`.
+- Ambiente: BETA / `https://betaqu.ghtcorptest.com`.
+- Orden seleccionada: `PD7028-001`.
+- Prefijo usado para validaciones: `PD7028`.
+- Item validado en BETA GR: `001`.
+- Box Code anterior: `R`.
+- Box Code aplicado y validado: `H`.
+- Validacion Order Entry: Box Code `H` visible para `PD7028`.
+- Validacion BETA GR: `Caja=H` para `PD7028-001` despues de aplicar el fallback `Fecha=UC`.
+- Evidencia final revisada visualmente: toda la fila del item `001` quedo resaltada en azul.
+- Documento generado: `C:\Users\DianaSPS\Documents\Pruebas Bulk Changes\Bulk-changes_BoxCode_20260922.docx`.
+- Imagenes incluidas en el documento: `13`.
+- Error de `qa_metrics`: no bloqueante para la validacion funcional.
+
+---
+
 ## Notas de ejecucion
 
 - El test usa frames de WebFlowers; los elementos del menu se buscan en `iframe#left_page1` y los modulos en `iframe#center_page`.
@@ -447,8 +490,10 @@ Resultado:
 - La prueba no valida base de datos.
 - La validacion de Order Entry puede requerir reintentos por latencia en la propagacion del Box Code aplicado.
 - El cierre del navegador ocurre solo despues de que `Caja` coincide con el Box Code asignado en QU desde Bulk Changes.
+- La captura final se genera solo despues de resaltar toda la fila que coincide con la orden y el item capturados.
+- El resaltado de fila completa es una regla especifica de esta prueba de Box Code y no se debe trasladar automaticamente a otros escenarios.
 
 ---
 
 *webflowers-qa-automation - tests/specs-fuente/modulo-bulkchanges/bulk-changes_Box code.md*
-*Actualizado: 2026-09-01*
+*Actualizado: 2026-09-22*
