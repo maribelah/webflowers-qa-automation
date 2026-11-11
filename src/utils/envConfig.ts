@@ -6,6 +6,10 @@ import 'dotenv/config';
 export interface EnvConfig {
   ambiente: 'ALPHA' | 'BETA' | 'PROD';
   url: string;
+  urlPO: string;
+  urlInvoice: string;
+  usuarioPO: string;
+  passwordPO: string;
   usuario: string;
   password: string;
   ignoreSSL: boolean;
@@ -39,6 +43,14 @@ function getEnvVar(key: string): string {
   return value;
 }
 
+/** Normaliza URLs copiadas desde archivos properties o mensajes. */
+function getUrl(key: string): string {
+  const value = getEnvVar(key).trim().replace(/\\([:.])/g, '$1');
+  const parsed = new URL(value);
+  if (!['https:', 'http:'].includes(parsed.protocol)) throw new Error(`URL invalida: ${key}`);
+  return parsed.href;
+}
+
 /**
  * Carga y valida la configuración del ambiente activo
  */
@@ -56,9 +68,13 @@ function cargarConfiguracion(): EnvConfig {
   }
 
   // Cargar variables específicas del ambiente
-  const url = getEnvVar(`${ambiente}_URL`);
+  const url = getUrl(`${ambiente}_URL`);
+  const urlPO = ambiente === 'BETA' ? getUrl('BETAPO_URL') : url;
+  const urlInvoice = ambiente === 'BETA' && process.env.BETAINVOICE_URL ? getUrl('BETAINVOICE_URL') : url;
   const usuario = getEnvVar(`${ambiente}_USER`);
   const password = getEnvVar(`${ambiente}_PASS`);
+  const usuarioPO = ambiente === 'BETA' ? process.env.BETAPO_USER || usuario : usuario;
+  const passwordPO = ambiente === 'BETA' ? process.env.BETAPO_PASS || password : password;
   const servidorBD = getEnvVar(`${ambiente}_SERVIDOR_BD`);
   const nombreBD = getEnvVar(`${ambiente}_BD`);
   const usuarioBD = getEnvVar(`${ambiente}_USER_BD`);
@@ -76,6 +92,10 @@ function cargarConfiguracion(): EnvConfig {
   return {
     ambiente,
     url,
+    urlPO,
+    urlInvoice,
+    usuarioPO,
+    passwordPO,
     usuario,
     password,
     ignoreSSL,
@@ -106,6 +126,8 @@ export const ENV: EnvConfig = cargarConfiguracion();
 if (process.env.DEBUG) {
   console.log(`🌐 [envConfig] — Ambiente activo: ${ENV.ambiente}`);
   console.log(`   URL: ${ENV.url}`);
+  console.log(`   URL PO: ${ENV.urlPO}`);
+  console.log(`   URL Invoice: ${ENV.urlInvoice}`);
   console.log(`   BD: ${ENV.db.nombre} @ ${ENV.db.servidor}`);
   console.log(`   Métricas: ${ENV.metrics.bd} @ ${ENV.metrics.servidor}`);
   console.log(`   ignoreSSL: ${ENV.ignoreSSL}`);

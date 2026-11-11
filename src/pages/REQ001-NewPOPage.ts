@@ -1,6 +1,17 @@
 import { FrameLocator, Locator, Page } from '@playwright/test';
 import { BasePage } from './BasePage';
 
+interface CustomerOption {
+  textContent: string | null;
+  value: string;
+}
+
+interface CustomerSelect {
+  options: ArrayLike<CustomerOption>;
+  selectedIndex: number;
+  dispatchEvent(event: Event): boolean;
+}
+
 /**
  * Page Class para REQ001 - New Purchase Order [Products].
  *
@@ -44,8 +55,8 @@ export class REQ001NewPOPage extends BasePage {
     this.frameCenter = page.frameLocator('iframe#center_page');
 
     this.menuProcurement = this.frameMenu.locator("//div[@class='div-parent' and @title='Procurement']");
-    this.menuProducts = this.frameMenu.locator("//div[@class='div-parent' and @title='Procurement']/ul/li[3]/div");
-    this.opcionNewPO = this.frameMenu.getByText('New PO', { exact: true });
+    this.menuProducts = this.frameMenu.locator('#subProcurement').getByText('Products');
+    this.opcionNewPO = this.frameMenu.getByRole('link', { name: 'New PO' });
 
     this.encabezadoNewPO = this.frameCenter.getByText('Procurement - New Purchase Order [Products]', { exact: true });
     this.campoVendor = this.frameCenter.locator(
@@ -135,6 +146,8 @@ export class REQ001NewPOPage extends BasePage {
   async esperarCargaNewPO(): Promise<void> {
     await this.esperarCargaEstable();
     await this.encabezadoNewPO.waitFor({ state: 'visible', timeout: 30000 });
+    await this.selectVendor.waitFor({ state: 'visible', timeout: 90000 });
+    await this.btnSave.first().waitFor({ state: 'visible', timeout: 30000 });
   }
 
   /** Ingresa la fecha actual en Due Date y Vendor Shipment Date. */
@@ -380,7 +393,7 @@ export class REQ001NewPOPage extends BasePage {
     });
 
     return await this.selectCustomerPrimeraLinea.first().evaluate(select => {
-      const customerSelect = select as HTMLSelectElement;
+      const customerSelect = select as unknown as CustomerSelect;
       const opcionesValidas = Array.from(customerSelect.options)
         .map((option, index) => ({
           index,
@@ -411,7 +424,7 @@ export class REQ001NewPOPage extends BasePage {
     });
 
     return await this.selectCustomerPrimeraLinea.first().evaluate((select, textoPreferido) => {
-      const customerSelect = select as HTMLSelectElement;
+      const customerSelect = select as unknown as CustomerSelect;
       const preferidoNormalizado = String(textoPreferido).trim().toLowerCase();
       const opcionesValidas = Array.from(customerSelect.options)
         .map((option, index) => ({

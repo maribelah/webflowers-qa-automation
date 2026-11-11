@@ -7,7 +7,7 @@ import { ENV } from './src/utils/envConfig';
  * Decisiones de diseño:
  * - ADR-004: Ejecución secuencial (fullyParallel: false, workers: 1) por ambientes compartidos
  * - Reporters en orden: line → allure → metricsReporter
- * - Screenshots y videos solo en fallos para optimizar espacio
+ * - Capturas explicitas solo de documentos generados y errores no mapeados
  */
 export default defineConfig({
   testDir: './tests',
@@ -35,10 +35,12 @@ export default defineConfig({
 
   /* Configuración global de ejecución */
   use: {
+    ...devices['Desktop Chrome'],
+    viewport: { width: 1920, height: 1080 },
     /*Ejecutar modo visible*/
     
-    /* Screenshots solo en fallos */
-    screenshot: 'only-on-failure',
+    /* Las capturas se gestionan con captureEvidence para evitar duplicados. */
+    screenshot: 'off',
     
     /* Video solo en fallos */
     video: 'retain-on-failure',
@@ -56,14 +58,20 @@ export default defineConfig({
     actionTimeout: 15000,
   },
 
-  /* Proyecto de pruebas */
+  /* Invoice depende de una PO nueva; login conserva sus casos independientes. */
   projects: [
     {
-      name: 'WebFlowers CRM',
-      use: { 
-        ...devices['Desktop Chrome'],
-        viewport: { width: 1920, height: 1080 }
-      },
+      name: 'Login',
+      testMatch: '**/modulo-login/*.spec.ts',
+    },
+    {
+      name: 'Procurement',
+      testMatch: '**/modulo-procurement/*.spec.ts',
+    },
+    {
+      name: 'Invoice',
+      testMatch: '**/modulo-beta-invoice/*.spec.ts',
+      dependencies: ['Procurement'],
     },
   ],
 });

@@ -1,3 +1,5 @@
+import { captureEvidence } from '../utils/evidence';
+import { hasUnmappedErrors } from '../utils/errorPolicy';
 import { test as base, expect } from '@playwright/test';
 import { verificarConexion } from '../utils/dbHelper';
 import { ENV } from '../utils/envConfig';
@@ -8,7 +10,7 @@ import { ENV } from '../utils/envConfig';
  * Proporciona setup y teardown automático para todos los tests:
  * - beforeAll: Verifica conexión a BD
  * - beforeEach: Log del test que inicia
- * - afterEach: Screenshot en caso de fallo
+ * - afterEach: Capturas exclusivamente para errores no mapeados
  * - afterAll: Limpieza de recursos
  * 
  * IMPORTANTE: Los tests deben importar { test, expect } desde este archivo,
@@ -22,6 +24,7 @@ base.beforeAll(async () => {
   console.log(`\n${'═'.repeat(80)}`);
   console.log(`🌸 WebFlowers QA Automation — Ambiente: ${ENV.ambiente}`);
   console.log(`   URL: ${ENV.url}`);
+  console.log(`   URL PO: ${ENV.urlPO}`);
   console.log(`   BD: ${ENV.db.nombre}`);
   console.log(`${'═'.repeat(80)}\n`);
 
@@ -50,17 +53,23 @@ base.beforeEach(async ({ }, testInfo) => {
 base.afterEach(async ({ page }, testInfo) => {
   const timestamp = new Date().toISOString();
   
-  // Capturar screenshot si el test falló
+  // Un error mapeado mantiene el fallo, pero no genera imagen.
   if (testInfo.status !== testInfo.expectedStatus) {
     console.log(`❌ [${timestamp}] — Test fallido: ${testInfo.title}`);
     
-    const screenshotPath = `reports/screenshots/FAILED-${testInfo.title.replace(/[^a-z0-9]/gi, '-')}.png`;
-    await page.screenshot({
-      path: screenshotPath,
-      fullPage: true
-    });
-    
-    console.log(`   Screenshot guardado: ${screenshotPath}`);
+    if (hasUnmappedErrors(testInfo.errors)) {
+      // Incluye Add Inventory cuando el error ocurre en una pestana secundaria.
+      for (const [index, activePage] of page.context().pages().entries()) {
+        if (activePage.isClosed()) continue;
+        try {
+          await captureEvidence(activePage, testInfo, `ERROR-NO-MAPEADO-pagina-${index + 1}.png`);
+        } catch (error) {
+          console.warn(`No se pudo capturar la pagina ${index + 1}: ${String(error)}`);
+        }
+      }
+    } else {
+      console.log('   Error mapeado: no se genera captura.');
+    }
   } else {
     console.log(`✅ [${timestamp}] — Test exitoso: ${testInfo.title}`);
   }

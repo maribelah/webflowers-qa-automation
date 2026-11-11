@@ -4,6 +4,7 @@
   "description": "Framework de automatización QA para WebFlowers CRM — GHT",
   "main": "index.js",
   "scripts": {
+    "test:po-invoice": "playwright test --project=Invoice",
     "test": "npx playwright test",
     "test:alpha": "cross-env AMBIENTE=ALPHA npx playwright test",
     "test:beta": "cross-env AMBIENTE=BETA npx playwright test",

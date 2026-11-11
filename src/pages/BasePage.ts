@@ -1,7 +1,4 @@
 import { Page, Locator } from '@playwright/test';
-import { sanitizarNombre } from '../utils/helpers';
-import * as fs from 'fs';
-import * as path from 'path';
 
 /**
  * Clase base de la que heredan todas las Page Classes
@@ -31,31 +28,6 @@ export class BasePage {
    */
   async esperarElemento(locator: Locator, timeout: number = 30000): Promise<void> {
     await locator.waitFor({ state: 'visible', timeout });
-  }
-
-  /**
-   * Toma un screenshot de la página completa con nombre secuencial
-   * Los screenshots se guardan en reports/screenshots/
-   * @param nombre - Nombre descriptivo del screenshot
-   * @param secuencia - Número de secuencia (ej: 01, 02, 03)
-   */
-  async tomarScreenshot(nombre: string, secuencia: number): Promise<void> {
-    const nombreSanitizado = sanitizarNombre(nombre);
-    const secuenciaFormateada = String(secuencia).padStart(2, '0');
-    const nombreArchivo = `${secuenciaFormateada}-${nombreSanitizado}.png`;
-    const screenshotDir = path.join(process.cwd(), 'reports', 'screenshots');
-    
-    // Crear el directorio si no existe
-    if (!fs.existsSync(screenshotDir)) {
-      fs.mkdirSync(screenshotDir, { recursive: true });
-    }
-    
-    const rutaCompleta = path.join(screenshotDir, nombreArchivo);
-    
-    await this.page.screenshot({
-      path: rutaCompleta,
-      fullPage: true
-    });
   }
 
   /**

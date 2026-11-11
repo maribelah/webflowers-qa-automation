@@ -331,3 +331,40 @@ Para dudas o problemas:
 
 **webflowers-qa-automation** — Framework de QA Automation para WebFlowers CRM  
 © 2026 GHT — Todos los derechos reservados
+
+## Evidencias por requerimiento
+
+`reports/screenshots/<REQ>/<ejecucion>/` conserva exclusivamente:
+- `REQ001-po-generada.png`: PO guardada y numero validado.
+- `REQ002-invoice-generado.png`: invoice guardado con numero y PO validados.
+- `ERROR-NO-MAPEADO-pagina-*.png`: fallos inesperados, incluyendo pestanas abiertas.
+
+No se capturan pasos intermedios, login ni alertas conocidas resueltas.
+Los errores tipados como `MappedApplicationError` conservan el fallo del test
+sin generar capturas. Un timeout o fallo distinto durante su recuperacion se
+considera inesperado y si genera captura.
+Los resumenes, HTML y registros de red se guardan en `reports/diagnostics/`.
+Las capturas automaticas de Playwright estan desactivadas para evitar duplicados.
+
+## Flujo de PO a Invoice
+
+Ejecutar `npm run test:po-invoice -- --headed` para crear una PO con REQ001 y continuar con
+REQ002 en navegador visible solo si REQ001 termina correctamente. La PO se transfiere automaticamente
+mediante `src/data/REQ002-invoiceData.json`, conservando el ambiente y la evidencia
+de origen. El proyecto Playwright `Invoice` depende de `Procurement`, por lo que
+ejecutar Invoice tambien ejecuta primero REQ001. Para ejecutar solo REQ002 con
+una PO existente del mismo servidor, usar `--project=Invoice --no-deps`.
+
+En BETA, REQ001 usa exclusivamente `BETAPO_URL` (betafft.ghtcorptest.com) y
+REQ002 usa `BETAINVOICE_URL` (betacf.ghtcorptest.com), con `BETA_URL` como respaldo.
+Las URLs conservan su sesion. Si PO requiere otro acceso, configurar
+`BETAPO_USER` y `BETAPO_PASS`; en su ausencia se usan `BETA_USER` y `BETA_PASS`.
+El traspaso registra el servidor de origen para rechazar PO de otro servidor.
+`npm run test:headed` ejecuta todos los proyectos, incluidos los casos de login.
+
+Si aparece `Invalid carrier account number`, REQ002 completa Carrier Account con
+cuatro letras y seis numeros aleatorios, sin espacios, y reintenta guardar una vez.
+La captura `REQ002-invoice-generado.png` se toma despues de confirmar el numero
+del invoice y la PO, y se adjunta al reporte de Playwright.
+
+Validar el proyecto con `npx tsc --noEmit`.

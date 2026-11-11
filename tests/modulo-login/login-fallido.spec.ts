@@ -9,18 +9,10 @@ test.describe('Módulo Login — Casos negativos de autenticación', () => {
 
     await test.step('Navegar a la página de login', async () => {
       await loginPage.navegarAlInicio();
-      await page.screenshot({
-        path: 'reports/screenshots/01-pagina-login-caso-fallido.png',
-        fullPage: true
-      });
     });
 
     await test.step('Ingresar credenciales incorrectas', async () => {
       await loginPage.login(loginData.fallido.usuario, loginData.fallido.password);
-      await page.screenshot({
-        path: 'reports/screenshots/02-credenciales-incorrectas-ingresadas.png',
-        fullPage: true
-      });
     });
 
     await test.step('Validar mensaje de error', async () => {
@@ -30,20 +22,12 @@ test.describe('Módulo Login — Casos negativos de autenticación', () => {
       const mensajeError = await loginPage.obtenerMensajeError();
       expect(mensajeError.length).toBeGreaterThan(0);
       
-      await page.screenshot({
-        path: 'reports/screenshots/03-mensaje-error-visible.png',
-        fullPage: true
-      });
     });
 
     await test.step('Validar que permanece en login', async () => {
       const estaEnLogin = await loginPage.estaEnLogin();
       expect(estaEnLogin).toBe(true);
       
-      await page.screenshot({
-        path: 'reports/screenshots/04-permanece-en-login.png',
-        fullPage: true
-      });
     });
   });
 
@@ -52,18 +36,10 @@ test.describe('Módulo Login — Casos negativos de autenticación', () => {
 
     await test.step('Navegar a la página de login', async () => {
       await loginPage.navegarAlInicio();
-      await page.screenshot({
-        path: 'reports/screenshots/01-pagina-login-campos-vacios.png',
-        fullPage: true
-      });
     });
 
     await test.step('Intentar login con campos vacíos', async () => {
       await loginPage.login(loginData.borde.usuario, loginData.borde.password);
-      await page.screenshot({
-        path: 'reports/screenshots/02-campos-vacios-submit.png',
-        fullPage: true
-      });
     });
 
     await test.step('Validar que muestra validación de formulario', async () => {
@@ -77,10 +53,6 @@ test.describe('Módulo Login — Casos negativos de autenticación', () => {
       expect(mensajeError).not.toBeNull();
       expect(mensajeError?.length).toBeGreaterThan(0);
       
-      await page.screenshot({
-        path: 'reports/screenshots/03-validacion-formulario.png',
-        fullPage: true
-      });
     });
   });
 

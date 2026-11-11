@@ -42,6 +42,8 @@ export class AuthTasks {
   async loginEnUrl(url: string, usuario: string, password: string): Promise<void> {
     await this.loginPage.navegarA(url);
     await this.loginPage.login(usuario, password);
+    const error = await this.loginPage.obtenerMensajeErrorVisible();
+    if (error) throw new Error(`Login rechazado en ${new URL(url).hostname}: ${error}`);
   }
 
   /**
